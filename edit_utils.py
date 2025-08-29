@@ -5,16 +5,19 @@ from time import time
 from peft import LoraConfig, TaskType, get_peft_model
 from EasyEdit.easyeditor.util import nethook
 import random
+import os
+import numpy as np
+import copy
 from datasets import Dataset
 from transformers import TrainingArguments, Trainer, StoppingCriteria, StoppingCriteriaList
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
+from eval_utils import check_answer_in_pred, compute_edit_quality
+
 def mean_pooling(token_embeddings, mask):
     token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.)
     sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)[..., None]
     return sentence_embeddings
 
-def check_answer_in_pred(pred, answers):
-    pred = pred.lower()
-    return any([a.lower() in pred for a in answers])
 
 def get_sent_embeddings(sents, contriever, tok, device, BSZ=32):
     all_embs = []
@@ -64,6 +67,78 @@ def create_lora_model(
     print("LoRA model created.")
     return lora_model
 
+
+def preprocess_function(examples,tokenizer):
+    # 将每个item_case_examples中的text和target组合
+    all_texts = []
+    all_targets = []
+    
+    for item in examples['item_case_examples']:
+        for example in item:
+            all_texts.append(example['text'])
+            all_targets.append(example['target'])
+            
+    # 组合输入和目标文本
+    inputs = [f"{text} {target}" for text, target in zip(all_texts, all_targets)]
+    random.shuffle(inputs)
+    learning_texts = []
+    learning_targets = []
+    for item in examples['learning_examples']:
+        for example in item:
+            learning_texts.append(example['text'])
+            learning_targets.append(example['target'])
+    learning_inputs = [f"{text} {target}." for text, target in zip(learning_texts, learning_targets)]
+    random.shuffle(learning_inputs)
+    # 对整个序列进行tokenize
+    final_inputs = inputs + learning_inputs
+    model_inputs = tokenizer(final_inputs, padding=True, truncation=True, max_length=256, return_tensors="np")
+    model_inputs['labels'] = model_inputs["input_ids"].copy()
+    return model_inputs
+
+def preprocess_function_chat(examples,tokenizer):
+    # 将每个item_case_examples中的text和target组合
+    all_texts = []
+    all_targets = []
+    
+    for item in examples['item_case_examples']:
+        for example in item:
+            all_texts.append(example['text'])
+            all_targets.append(example['target'])
+            
+    learning_texts = []
+    learning_targets = []
+    for item in examples['learning_examples']:
+        for example in item:
+            learning_texts.append(example['text'])
+            learning_targets.append(example['target'])
+
+    final_inputs = []
+    for text, target in zip(all_texts + learning_texts, all_targets + learning_targets):
+        # 使用chat template格式：user问问题，assistant回答
+        chat_format = [
+            {"role": "user", "content": text},
+            {"role": "assistant", "content": target}
+        ]
+        formatted_text = tokenizer.apply_chat_template(chat_format, tokenize=False)
+        final_inputs.append(formatted_text)
+    random.shuffle(final_inputs)
+    # 对整个序列进行tokenize
+    model_inputs = tokenizer(final_inputs, padding=True, truncation=True, max_length=256, return_tensors="np")
+    
+    # 创建labels，只计算assistant回答部分的loss
+    labels = model_inputs["input_ids"].copy()
+    ass_len = len("<|im_start|>assistant\n")
+    for i, formatted_text in enumerate(final_inputs):
+        # 找到assistant回答开始的位置
+        assistant_start = formatted_text.find("<|im_start|>assistant")
+        if assistant_start != -1:
+            # 将assistant回答之前的token设为-100
+            # 需要计算tokenizer中assistant标记的位置
+            tokens = tokenizer.tokenize(formatted_text[:assistant_start])
+            start_pos = len(tokens)
+            labels[i, :start_pos] = -100
+    model_inputs['labels'] = labels
+    return model_inputs
 
 
 class MultiStopCriteria(StoppingCriteria):
@@ -134,7 +209,7 @@ def call_model(prompt, stop, model, tokenizer):
     
     return generated_text
 
-def mello(task_prompt, q, model, tokenizer, stop, contriever, contriever_tokenizer, embs, answer, device):
+def mello(task_prompt, q, model, tokenizer, stop, contriever, contriever_tokenizer, embs, new_facts, answer, device):
     found_ans = False
     prompt = task_prompt + "\n\nQustion: " + q
     print('*********************************')
@@ -170,94 +245,53 @@ def mello(task_prompt, q, model, tokenizer, stop, contriever, contriever_tokeniz
     return check_answer_in_pred(ans, answer), prompt
 
 
-def preprocess_function(examples,tokenizer):
-    # 将每个item_case_examples中的text和target组合
-    all_texts = []
-    all_targets = []
-    
-    for item in examples['item_case_examples']:
-        for example in item:
-            all_texts.append(example['text'])
-            all_targets.append(example['target'])
-            
-    # 组合输入和目标文本
-    inputs = [f"{text} {target}" for text, target in zip(all_texts, all_targets)]
-    random.shuffle(inputs)
-    learning_texts = []
-    learning_targets = []
-    for item in examples['learning_examples']:
-        for example in item:
-            learning_texts.append(example['text'])
-            learning_targets.append(example['target'])
-    learning_inputs = [f"{text} {target}." for text, target in zip(learning_texts, learning_targets)]
-    random.shuffle(learning_inputs)
-    # 对整个序列进行tokenize
-    final_inputs = inputs + learning_inputs
-    model_inputs = tokenizer(final_inputs, padding=True, truncation=True, max_length=256, return_tensors="np")
-    model_inputs['labels'] = model_inputs["input_ids"].copy()
-    return model_inputs
 
-def check_answer(model,question, tokenizer,answer, device,max_new_tokens=50):
-    """检查模型是否能正确回答问题"""
-    inputs = tokenizer(question, return_tensors="pt").to(device)
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=max_new_tokens,
-        do_sample=False, 
-        temperature=None,
-        top_p=None,
-        pad_token_id=tokenizer.eos_token_id
-    )
-    generated_text = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)
-    return check_answer_in_pred(generated_text,answer)
-
-def compute_edit_quality(model, tokenizer, edit_item, hparams, test_generation=False):
-    metrics = {
-        'hop_wise':[],
-        'accuracy':[],
-    }
-    device = f"cuda:{hparams.device}"
-    for i in edit_item['new_single_hops']:
-        temp_metrics = []
-        ans = i['answer_alias']
-        ans.append(i['answer'])
-        temp_metrics.append(check_answer(model,'Answer: ' + i['cloze'],tokenizer,ans,device,max_new_tokens=10))
-        temp_metrics.append(check_answer(model,'Question: ' + i['question']+'\nAnswer: The answer is',tokenizer,ans,device,max_new_tokens=10))
-        metrics['hop_wise'].append(temp_metrics)
-    answer = edit_item['new_answer_alias']
-    answer.append(edit_item['new_answer'])
-    metrics['accuracy'].append(check_answer(model,'Answer: ' + edit_item['cloze_question'],tokenizer,answer,device,max_new_tokens=10))
-    metrics['accuracy'].append(check_answer(model,'Question: ' + edit_item['questions'][0]+'\nAnswer: The answer is',tokenizer,answer,device,max_new_tokens=10))
-    return metrics
-
-def edit_mello(model, task_prompt, stop, tokenizer, edit_item, hparams, contriever, contriever_tokenizer, embs, test_generation=False):
-    metrics = {'post':
-               {        
-                'hop_wise':[],
-                'accuracy':[],
-                }
-    }
+def edit_mello(model, task_prompt, stop, tokenizer, edit_item, hparams, contriever, contriever_tokenizer, embs, new_facts, test_generation=False):
+    metrics = {'post': {}}
     device = f"cuda:{hparams.device}"
     t_p = task_prompt
-    for i in edit_item['new_single_hops']:
-        temp_metrics = []
-        ans = i['answer_alias']
-        ans.append(i['answer'])
-        result, _ = mello(t_p, i['cloze'], model, tokenizer, stop, contriever, contriever_tokenizer, embs, ans, device)
-        temp_metrics.append(result)
-        result, _ = mello(t_p, i['question'], model, tokenizer, stop, contriever, contriever_tokenizer, embs, ans, device)
-        temp_metrics.append(result)
-        metrics['hop_wise'].append(temp_metrics)
-    answer = edit_item['new_answer_alias']
-    answer.append(edit_item['new_answer'])
-    res, _ = mello(task_prompt, edit_item['cloze_question'], model, tokenizer, stop, contriever, contriever_tokenizer, embs, answer, device)
-    metrics['accuracy'].append(res)
-    res, _ = mello(task_prompt, edit_item['questions'][0], model, tokenizer, stop, contriever, contriever_tokenizer, embs, answer, device)
-    metrics['accuracy'].append(res)
+    if 'new_single_hops' in edit_item and edit_item['new_single_hops']:
+        hop_wise_metrics = []
+        for i in edit_item['new_single_hops']:
+            temp_metrics = []
+            ans = i['answer_alias']
+            ans.append(i['answer'])
+            if i['cloze']:
+                result, _ = mello(t_p, i['cloze'], model, tokenizer, stop, contriever, contriever_tokenizer, embs, new_facts, ans, device)
+                temp_metrics.append(result)
+            result, _ = mello(t_p, i['question'], model, tokenizer, stop, contriever, contriever_tokenizer, embs, new_facts, ans, device)
+            temp_metrics.append(result)
+            hop_wise_metrics.append(temp_metrics)
+        metrics['post']['hop_wise'] = hop_wise_metrics
+    
+    if 'questions' in edit_item and edit_item['questions'] and edit_item['questions'][0]:
+        accuracy_metrics = []
+        answer = edit_item['new_answer_alias']
+        answer.append(edit_item['new_answer'])
+        if edit_item['cloze_question']:
+            res, _ = mello(task_prompt, edit_item['cloze_question'], model, tokenizer, stop, contriever, contriever_tokenizer, embs, new_facts, answer, device)
+            accuracy_metrics.append(res)
+        res, _ = mello(task_prompt, edit_item['questions'][0], model, tokenizer, stop, contriever, contriever_tokenizer, embs, new_facts, answer, device)
+        accuracy_metrics.append(res)
+        metrics['post']['accuracy'] = accuracy_metrics
+    
+    for hop_num in range(2, 7):
+        hop_key = f'{hop_num}_hops'
+        if hop_key in edit_item and edit_item[hop_key]:
+            hop_data = edit_item[hop_key][0]
+            if hop_data.get('question') and hop_data.get('answer'):
+                question = hop_data['question']
+                answer = [hop_data['answer']]
+                if hop_data.get('answer_alias'):
+                    answer.extend(hop_data['answer_alias'])
+                hop_result, _ = mello(task_prompt, question, model, tokenizer, stop, contriever, contriever_tokenizer, embs, new_facts, answer, device)
+                metrics['post'][f'{hop_num}_hops_acc'] = hop_result
+    
     return metrics
 
 def cake(original_model, tokenizer, item, hparams, test_generation=False):
-    target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
+    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"]
+    target_modules = ["up_proj","down_proj"] 
     model = create_lora_model(original_model,target_modules=target_modules)
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
@@ -286,7 +320,7 @@ def cake(original_model, tokenizer, item, hparams, test_generation=False):
     train_examples.append({'item_case_examples':item_case_examples,'learning_examples':learning_examples})
     train_dataset = Dataset.from_list(train_examples)
     train_dataset = train_dataset.map(
-        preprocess_function,
+        preprocess_function_chat,
         batched=True,
         remove_columns=train_dataset.column_names,
         fn_kwargs={"tokenizer": tokenizer}
@@ -295,9 +329,9 @@ def cake(original_model, tokenizer, item, hparams, test_generation=False):
     training_args = TrainingArguments(
             output_dir=f'./output/',
             overwrite_output_dir=True,
-            num_train_epochs=40,
+            num_train_epochs=30,
             per_device_train_batch_size=4,
-            learning_rate=1e-4,
+            learning_rate=5e-5,
             save_strategy="no",
             bf16=True,
             logging_steps=10,
@@ -470,3 +504,127 @@ def edit_wise(model, tokenizer, edit_item, hparams, loc_data, loc_index, apply_a
     with torch.no_grad():
         weights_copy()
     return metrics, loc_index
+
+def edit_no_unload(model, tokenizer, edit_item, hparams,alg_name,apply_algo,test_generation=False):
+    # all_metrics = []
+    start = time()
+    requests = edit_item['requested_rewrite']
+    for i in requests:
+        i['target_new'] = i['target_new']['str']
+    hparams.batch_size = len(requests)
+    edited_model, weights_copy = apply_algo(
+        model,
+        tokenizer,
+        requests,
+        hparams,
+        copy=False,
+        return_orig_weights=True
+    )
+    exec_time = time() - start
+    return edited_model, exec_time, weights_copy
+
+
+def cake_no_unload(original_model, tokenizer, item, hparams, test_generation=False):
+    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
+    target_modules = ["up_proj","down_proj"] 
+    model = create_lora_model(original_model,target_modules=target_modules)
+    # original_model = original_model.to(device)
+    model.enable_input_require_grads()
+    train_examples = []
+    item_case_examples = []
+    learning_examples = []
+    for rewrite in item['requested_rewrite']:
+        prompt = rewrite['prompt'].format(rewrite['subject'])
+        target = rewrite['target_new']['str']
+        item_case_examples.append({
+            "text": prompt,
+            "target": target
+        })
+        if 'rephrase_prompt' in rewrite:
+            for rewrite_item in rewrite['rephrase_prompt']:
+                item_case_examples.append({
+                    "text": rewrite_item['question'],
+                    "target": rewrite_item['answer']
+                })
+        if 'learning_prompt' in rewrite:
+            for learning_item in rewrite['learning_prompt']:
+                learning_examples.append({
+                    "text": learning_item['question'],
+                    "target": learning_item['answer']
+                })
+    train_examples.append({'item_case_examples':item_case_examples,'learning_examples':learning_examples})
+    train_dataset = Dataset.from_list(train_examples)
+    train_dataset = train_dataset.map(
+        preprocess_function_chat,
+        batched=True,
+        remove_columns=train_dataset.column_names,
+        fn_kwargs={"tokenizer": tokenizer}
+    )
+
+    training_args = TrainingArguments(
+            output_dir=f'./output/',
+            overwrite_output_dir=True,
+            num_train_epochs=30,
+            per_device_train_batch_size=4,
+            learning_rate=5e-5,
+            save_strategy="no",
+            bf16=True,
+            logging_steps=10,
+            report_to="none",
+        )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+    )
+    start = time()
+    trainer.train()
+    exec_time = time() - start
+    # the key difference is that we do not unload the model here
+
+    return model, exec_time
+
+def rome_no_unload(model, tokenizer, edit_item, hparams, apply_algo,test_generation=False):
+    # all_metrics = []
+    start = time()
+    requests = edit_item['requested_rewrite']
+    print(requests)
+    for i in requests:
+        i['target_new'] = i['target_new']['str']
+    for index,request in enumerate(requests):
+        edited_model, weights_copy = apply_algo(
+            model,
+            tokenizer,
+            [request],
+            hparams,
+            copy=False,
+            return_orig_weights=True
+        )
+    exec_time = time() - start
+    return edited_model, exec_time, weights_copy
+
+def wise_no_unload(model, tokenizer, edit_item, hparams, loc_data, loc_index, apply_algo, test_generation=False):
+    start = time()
+    requests = edit_item['requested_rewrite']
+    for i, item in enumerate(requests):
+        item['prompt'] = item['prompt'].format(item['subject'])
+        item['target_new'] = item['target_new']['str']
+        item.update({
+            'loc_prompt': loc_data[loc_index + i]['loc'] + ' ' + loc_data[loc_index + i]['loc_ans']
+        })
+    new_loc_index = loc_index + len(requests)
+    hparams.batch_size = len(requests)
+    edited_model, weights_copy = apply_algo(
+        model,
+        tokenizer,
+        requests,
+        hparams,
+        copy=False,
+        return_orig_weights=True
+    )
+    exec_time = time() - start
+    if hasattr(edited_model, 'model'):
+        return edited_model.model, exec_time, new_loc_index, weights_copy
+    else:
+        return edited_model, exec_time, new_loc_index, weights_copy
