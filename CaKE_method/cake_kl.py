@@ -191,3 +191,22 @@ def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_P
             current_model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map={"": "cuda:0"},torch_dtype=torch.bfloat16)
     print("CAKE_KL multi-edit completed.")
     return current_model, all_metrics
+
+def cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH, test_generation=False):
+    current_model = model
+    current_training_times = []
+    edited_items = []    
+    print("Starting CAKE_KL single-edit...")
+    lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
+    current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+    current_model = current_model.merge_and_unload()  
+    edited_items.append(item)
+    current_training_times.append(exec_time)
+    print(f"Testing knowledge retention after editing...")
+    test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+    current_training_times = []
+    edited_items = []
+    current_model = None
+    del current_model
+    current_model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map={"": "cuda:0"},torch_dtype=torch.bfloat16)
+    return current_model, test_metrics[0]

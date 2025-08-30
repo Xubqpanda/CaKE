@@ -7,7 +7,7 @@ from Edit_mode.sequential_edit import cake_sequential_edit, sequential_edit_rome
 from Edit_mode.multi_edit import multi_edit_rome, multi_edit, cake_multi_edit, multi_edit_wise
 from Edit_mode.continual_edit import continual_edit_rome, continual_edit, cake_continual_edit, continual_edit_wise
 from CaKE_method.cake_wise import cake_wise_sequential_edit, cake_wise_multi_edit, cake_wise_continual_edit
-from CaKE_method.cake_kl import cake_kl_sequential_edit, cake_kl_multi_edit, cake_kl_continual_edit
+from CaKE_method.cake_kl import cake_kl_sequential_edit, cake_kl_multi_edit, cake_kl_continual_edit, cake_kl_single_edit
 from CaKE_method.cake_batch import cake_batch_sequential_edit, cake_batch_multi_edit, cake_batch_continual_edit
 from CaKE_method.cake_Overtone import cake_overtone
 from EasyEdit.easyeditor.util.alg_dict import *
@@ -130,6 +130,8 @@ if __name__ == "__main__":
         for item in tqdm(data[:1000]):
             if args.editing_method == 'CAKE':
                 model, metrics = cake(model, tokenizer, item, hparams, test_generation=False)
+            elif args.editing_method == 'CAKE_KL':
+                model, metrics = cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH,test_generation=False)
             elif args.editing_method == 'CAKE_OverTone':
                 model, metrics = cake_overtone(model, tokenizer, item, hparams, test_generation=False)
             elif args.editing_method == 'WISE':
