@@ -9,6 +9,7 @@ from Edit_mode.continual_edit import continual_edit_rome, continual_edit, cake_c
 from CaKE_method.cake_wise import cake_wise_sequential_edit, cake_wise_multi_edit, cake_wise_continual_edit
 from CaKE_method.cake_kl import cake_kl_sequential_edit, cake_kl_multi_edit, cake_kl_continual_edit, cake_kl_single_edit
 from CaKE_method.cake_batch import cake_batch_sequential_edit, cake_batch_multi_edit, cake_batch_continual_edit
+from CaKE_method.cake_batch_kl import cake_batch_kl_sequential_edit, cake_batch_kl_multi_edit, cake_batch_kl_continual_edit
 from CaKE_method.cake_Overtone import cake_overtone
 from EasyEdit.easyeditor.util.alg_dict import *
 import torch
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         editing_hparams = AlphaEditHyperParams
     else:
         editing_hparams = LoRAHyperParams
-    if args.editing_method == 'CAKE' or args.editing_method == 'Mello' or args.editing_method == 'CAKE_KL' or args.editing_method == 'CAKE_Batch' or args.editing_method == 'CAKE_OverTone':
+    if args.editing_method == 'CAKE' or args.editing_method == 'Mello' or args.editing_method == 'CAKE_KL' or args.editing_method == 'CAKE_Batch' or args.editing_method == 'CAKE_OverTone' or args.editing_method == 'CAKE_Batch_KL':
         hparams=editing_hparams.from_hparams(f'./EasyEdit/hparams/LoRA/{args.model_type}.yaml')
     elif args.editing_method == 'IFMET':
         hparams=editing_hparams.from_hparams(f'./EasyEdit/hparams/{args.editing_method}/{args.model_type}-shallow.yaml')
@@ -97,7 +98,7 @@ if __name__ == "__main__":
         apply_algo = ALG_DICT[alg_name]
 
     MODEL_PATH = hparams.model_name
-    if args.editing_method == 'CAKE' or args.editing_method == 'CAKE_WISE' or args.editing_method == 'CAKE_KL' or args.editing_method == 'CAKE_Batch' or args.editing_method == 'CAKE_OverTone':
+    if args.editing_method == 'CAKE' or args.editing_method == 'CAKE_WISE' or args.editing_method == 'CAKE_KL' or args.editing_method == 'CAKE_Batch' or args.editing_method == 'CAKE_OverTone' or args.editing_method == 'CAKE_Batch_KL':
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto",torch_dtype=torch.bfloat16)
     else:
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto",torch_dtype=torch.float32)
@@ -167,6 +168,8 @@ if __name__ == "__main__":
             model, sequential_edit_metrics = cake_kl_sequential_edit(model, tokenizer, sequential_edit_items, hparams, edit_freq, test_generation=False)
         elif args.editing_method == 'CAKE_Batch':
             model, sequential_edit_metrics = cake_batch_sequential_edit(model, tokenizer, sequential_edit_items, hparams, edit_freq, test_generation=False)
+        elif args.editing_method == 'CAKE_Batch_KL':
+            model, sequential_edit_metrics = cake_batch_kl_sequential_edit(model, tokenizer, sequential_edit_items, hparams, edit_freq, test_generation=False)
         elif args.editing_method == 'WISE':
             metrics, sequential_edit_metrics = sequential_edit_wise(model, tokenizer, sequential_edit_items, hparams, loc_data, loc_index, apply_algo, edit_freq, test_generation=False) 
         else:
@@ -196,6 +199,8 @@ if __name__ == "__main__":
             model, continual_edit_metrics = cake_kl_continual_edit(model, tokenizer, continual_edit_items, hparams, edit_freq, test_generation=False)
         elif args.editing_method == 'CAKE_Batch':
             model, continual_edit_metrics = cake_batch_continual_edit(model, tokenizer, continual_edit_items, hparams, edit_freq, test_generation=False)
+        elif args.editing_method == 'CAKE_Batch_KL':
+            model, continual_edit_metrics = cake_batch_kl_continual_edit(model, tokenizer, continual_edit_items, hparams, edit_freq, test_generation=False)
         elif args.editing_method == 'WISE':
             metrics, continual_edit_metrics = continual_edit_wise(model, tokenizer, continual_edit_items, hparams, loc_data, loc_index, apply_algo, edit_freq, test_generation=False) 
         else:
@@ -227,6 +232,8 @@ if __name__ == "__main__":
             model, multi_edit_metrics = cake_wise_multi_edit(model, tokenizer, multi_edit_items, hparams, edit_freq, MODEL_PATH, test_generation=False)
         elif args.editing_method == 'CAKE_KL':
             model, multi_edit_metrics = cake_kl_multi_edit(model, tokenizer, multi_edit_items, hparams, edit_freq, MODEL_PATH, test_generation=False)
+        elif args.editing_method == 'CAKE_Batch_KL':
+            model, multi_edit_metrics = cake_batch_kl_multi_edit(model, tokenizer, multi_edit_items, hparams, edit_freq, MODEL_PATH, test_generation=False)
         elif args.editing_method == 'CAKE_Batch':
             model, multi_edit_metrics = cake_batch_multi_edit(model, tokenizer, multi_edit_items, hparams, edit_freq, MODEL_PATH, test_generation=False)
         else:
