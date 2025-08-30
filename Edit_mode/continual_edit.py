@@ -1,5 +1,5 @@
-from ..edit_utils import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload
-from ..eval_utils import test_current_edited_knowledge
+from edit_utils import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload
+from eval_utils import test_current_edited_knowledge
 
 def cake_continual_edit(base_model, tokenizer, items_list, hparams, edit_freq, test_generation=False):    
     current_model = base_model

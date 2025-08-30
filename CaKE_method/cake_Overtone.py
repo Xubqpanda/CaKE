@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from typing import List, Dict, Union
 from tqdm import tqdm
 from time import time
-from ..edit_utils import create_lora_model, preprocess_function_chat, compute_edit_quality
+from edit_utils import create_lora_model, preprocess_function_chat, compute_edit_quality
 from datasets import Dataset
 from transformers import TrainingArguments, Trainer
 from collections import Counter

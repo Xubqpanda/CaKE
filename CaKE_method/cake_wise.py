@@ -9,9 +9,8 @@ from datasets import Dataset
 from transformers import TrainingArguments, Trainer, StoppingCriteria, StoppingCriteriaList
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 from peft import get_peft_model_state_dict, get_peft_model, set_peft_model_state_dict, LoraConfig, TaskType
-from ..edit_utils import preprocess_function_chat, create_lora_model
-from ..eval_utils import test_current_edited_knowledge
-
+from edit_utils import preprocess_function_chat, create_lora_model
+from eval_utils import test_current_edited_knowledge
 def cake_wise_return_lora_weights(original_model, tokenizer, item, hparams, test_generation=False):
     # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
     target_modules = ["up_proj","down_proj"]

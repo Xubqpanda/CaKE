@@ -1,5 +1,5 @@
-from ..edit_utils  import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload
-from ..eval_utils import test_current_edited_knowledge
+from edit_utils  import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload
+from eval_utils import test_current_edited_knowledge
 import torch
 from EasyEdit.easyeditor.util import nethook
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
