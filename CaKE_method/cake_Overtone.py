@@ -164,7 +164,7 @@ class OvertoneTrainer(Trainer):
         
         super().log(formatted_logs)
 
-def cake_overtone(original_model, tokenizer, item, hparams, test_generation=False):
+def cake_overtone(original_model, tokenizer, item, hparams, datatype,test_generation=False):
     target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
     model = create_lora_model(original_model,target_modules=target_modules)
     # original_model = original_model.to(device)
@@ -202,7 +202,7 @@ def cake_overtone(original_model, tokenizer, item, hparams, test_generation=Fals
         preprocess_function_chat, 
         batched=True,
         remove_columns=train_dataset.column_names,
-        fn_kwargs={"tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
     training_args = TrainingArguments(
@@ -239,7 +239,7 @@ def cake_overtone(original_model, tokenizer, item, hparams, test_generation=Fals
         'case_id': item['case_id'],
         "requested_rewrite": item['requested_rewrite'],
         "time": exec_time,
-        "post": compute_edit_quality(model, tokenizer, item, hparams, test_generation=test_generation),
+        "post": compute_edit_quality(model, tokenizer, item, hparams,datatype, test_generation=test_generation),
     }
     
     model = model.unload()

@@ -95,7 +95,7 @@ def preprocess_function(examples,tokenizer):
     model_inputs['labels'] = model_inputs["input_ids"].copy()
     return model_inputs
 
-def preprocess_function_chat(examples,tokenizer):
+def preprocess_function_chat(examples,tokenizer,model):
     # 将每个item_case_examples中的text和target组合
     all_texts = []
     all_targets = []
@@ -127,19 +127,20 @@ def preprocess_function_chat(examples,tokenizer):
     
     # 创建labels，只计算assistant回答部分的loss
     labels = model_inputs["input_ids"].copy()
-    ass_len = len("<|im_start|>assistant\n")
+    model_name = model.config.model_type
+    if "llama" in model_name.lower():
+        ass_tag = "<|start_header_id|>assistant<|end_header_id|"
+    elif "qwen" in model_name.lower():
+        ass_tag = "<|im_start|>assistant\n"
     for i, formatted_text in enumerate(final_inputs):
         # 找到assistant回答开始的位置
-        assistant_start = formatted_text.find("<|im_start|>assistant")
+        assistant_start = formatted_text.find(ass_tag)
         if assistant_start != -1:
-            # 将assistant回答之前的token设为-100
-            # 需要计算tokenizer中assistant标记的位置
             tokens = tokenizer.tokenize(formatted_text[:assistant_start])
             start_pos = len(tokens)
             labels[i, :start_pos] = -100
     model_inputs['labels'] = labels
     return model_inputs
-
 
 class MultiStopCriteria(StoppingCriteria):
     def __init__(self, stop_token_sequences):
@@ -246,7 +247,7 @@ def mello(task_prompt, q, model, tokenizer, stop, contriever, contriever_tokeniz
 
 
 
-def edit_mello(model, task_prompt, stop, tokenizer, edit_item, hparams, contriever, contriever_tokenizer, embs, new_facts, test_generation=False):
+def edit_mello(model, task_prompt, stop, tokenizer, edit_item, hparams, contriever, contriever_tokenizer, embs, new_facts, datatype,test_generation=False):
     metrics = {'post': {}}
     device = f"cuda:{hparams.device}"
     t_p = task_prompt
@@ -289,7 +290,7 @@ def edit_mello(model, task_prompt, stop, tokenizer, edit_item, hparams, contriev
     
     return metrics
 
-def cake(original_model, tokenizer, item, hparams, test_generation=False):
+def cake(original_model, tokenizer, item, hparams, datatype,test_generation=False):
     # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"]
     target_modules = ["up_proj","down_proj"] 
     model = create_lora_model(original_model,target_modules=target_modules)
@@ -323,7 +324,7 @@ def cake(original_model, tokenizer, item, hparams, test_generation=False):
         preprocess_function_chat,
         batched=True,
         remove_columns=train_dataset.column_names,
-        fn_kwargs={"tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
     training_args = TrainingArguments(
@@ -350,7 +351,7 @@ def cake(original_model, tokenizer, item, hparams, test_generation=False):
         'case_id': item['case_id'],
         "requested_rewrite": item['requested_rewrite'],
         "time": exec_time,
-        "post": compute_edit_quality(model, tokenizer, item, hparams, test_generation=test_generation),
+        "post": compute_edit_quality(model, tokenizer, item, hparams, datatype, test_generation=test_generation),
     }
     model = model.unload()
     del model.peft_config
@@ -358,7 +359,7 @@ def cake(original_model, tokenizer, item, hparams, test_generation=False):
     return model, metrics
 
 
-def edit(model, tokenizer, edit_item, hparams,alg_name,apply_algo,test_generation=False):
+def edit(model, tokenizer, edit_item, hparams,alg_name,apply_algo,datatype,test_generation=False):
     # all_metrics = []
     start = time()
     requests = edit_item['requested_rewrite']
@@ -380,7 +381,7 @@ def edit(model, tokenizer, edit_item, hparams,alg_name,apply_algo,test_generatio
         'case_id': edit_item['case_id'],
         "requested_rewrite": requests,
         "time": exec_time,
-        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams, test_generation=test_generation),
+        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams, datatype, test_generation=test_generation),
     }
     # chunk_metrics.append(metrics)
     if alg_name == 'KN' or alg_name == 'GRACE' or alg_name == 'WISE':
@@ -396,7 +397,7 @@ def edit(model, tokenizer, edit_item, hparams,alg_name,apply_algo,test_generatio
             for k, v in weights_copy.items():
                 nethook.get_parameter(model, k)[...] = v.to(f"cuda:{hparams.device}")
     return edited_model, metrics
-def edit_rome(model, tokenizer, edit_item, hparams, apply_algo,test_generation=False):
+def edit_rome(model, tokenizer, edit_item, hparams, apply_algo,datatype,test_generation=False):
     # all_metrics = []
     start = time()
     requests = edit_item['requested_rewrite']
@@ -420,13 +421,13 @@ def edit_rome(model, tokenizer, edit_item, hparams, apply_algo,test_generation=F
         'case_id': edit_item['case_id'],
         "requested_rewrite": requests,
         "time": exec_time,
-        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams, test_generation=test_generation),
+        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams, datatype, test_generation=test_generation),
     } 
     with torch.no_grad():
         for k, v in origin_weights_copy.items():
             nethook.get_parameter(model, k)[...] = v.to(f"cuda:{hparams.device}")
     return edited_model, metrics
-def edit_ifmet(model, tokenizer, edit_item, hparams_s, hparams_d, apply_algo,test_generation=False):
+def edit_ifmet(model, tokenizer, edit_item, hparams_s, hparams_d, apply_algo,datatype,test_generation=False):
     start = time()
     requests = edit_item['requested_rewrite']
     ifmet_requests = []
@@ -465,7 +466,7 @@ def edit_ifmet(model, tokenizer, edit_item, hparams_s, hparams_d, apply_algo,tes
         'case_id': edit_item['case_id'],
         "requested_rewrite": requests,
         "time": exec_time,
-        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams_s, test_generation=test_generation),
+        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams_s, datatype, test_generation=test_generation),
     }
     with torch.no_grad():
         if len(ifmet_requests) > 0:
@@ -475,7 +476,7 @@ def edit_ifmet(model, tokenizer, edit_item, hparams_s, hparams_d, apply_algo,tes
             nethook.get_parameter(model, k)[...] = v.to(f"cuda:{hparams_s.device}")
     return edited_model, metrics
 
-def edit_wise(model, tokenizer, edit_item, hparams, loc_data, loc_index, apply_algo,test_generation=False):
+def edit_wise(model, tokenizer, edit_item, hparams, loc_data, loc_index, apply_algo,datatype,test_generation=False):
     start = time()
     requests = edit_item['requested_rewrite']
     for i,item in enumerate(requests):
@@ -499,7 +500,7 @@ def edit_wise(model, tokenizer, edit_item, hparams, loc_data, loc_index, apply_a
         'case_id': edit_item['case_id'],
         "requested_rewrite": requests,
         "time": exec_time,
-        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams, test_generation=test_generation),
+        "post": compute_edit_quality(edited_model, tokenizer, edit_item, hparams, datatype, test_generation=test_generation),
     }
     with torch.no_grad():
         weights_copy()
@@ -558,7 +559,7 @@ def cake_no_unload(original_model, tokenizer, item, hparams, test_generation=Fal
         preprocess_function_chat,
         batched=True,
         remove_columns=train_dataset.column_names,
-        fn_kwargs={"tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
     training_args = TrainingArguments(

@@ -4,7 +4,7 @@ import torch
 from EasyEdit.easyeditor.util import nethook
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
-def multi_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, edit_freq, test_generation=False):
+def multi_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, edit_freq, datatype,test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -19,7 +19,7 @@ def multi_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, edit
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
@@ -39,7 +39,7 @@ def multi_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, edit
     print(f"{alg_name} multi-edit completed!")
     return current_model, all_metrics
 
-def cake_multi_edit(base_model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH, test_generation=False):    
+def cake_multi_edit(base_model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH, datatype,test_generation=False):    
     current_model = base_model
     all_metrics = []
     current_training_times = []
@@ -52,7 +52,7 @@ def cake_multi_edit(base_model, tokenizer, items_list, hparams, edit_freq, MODEL
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
@@ -62,7 +62,7 @@ def cake_multi_edit(base_model, tokenizer, items_list, hparams, edit_freq, MODEL
     print("CAKE multi-edit completed!")
     return current_model, all_metrics
 
-def multi_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq, test_generation=False):
+def multi_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq, datatype,test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -77,7 +77,7 @@ def multi_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
@@ -90,7 +90,7 @@ def multi_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq
 
 
 
-def multi_edit_wise(model, tokenizer, items_list, hparams, loc_data, initial_loc_index, apply_algo, edit_freq, test_generation=False):
+def multi_edit_wise(model, tokenizer, items_list, hparams, loc_data, initial_loc_index, apply_algo, edit_freq, datatype,test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -107,7 +107,7 @@ def multi_edit_wise(model, tokenizer, items_list, hparams, loc_data, initial_loc
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []

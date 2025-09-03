@@ -74,7 +74,7 @@ def cake_kl_return_lora_weights(original_model, tokenizer, item, hparams, test_g
         preprocess_function_chat,
         batched=True,
         remove_columns=train_dataset.column_names,
-        fn_kwargs={"tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
     training_args = TrainingArguments(
@@ -123,7 +123,7 @@ def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
     
     return peft_model
 
-def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq, test_generation=False):
+def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -138,14 +138,14 @@ def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq, te
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
             print(f"Testing knowledge retention after {i+1} edits...")
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
     print("CAKE_KL sequential-edit completed.")
     return current_model, all_metrics
 
-def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq, test_generation=False):
+def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -160,14 +160,14 @@ def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq, tes
         current_training_times.append(exec_time)
         if (i + 1) == len(items_list):
             print(f"Testing knowledge retention after {i+1} edits...")
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
     print("CAKE_KL continual-edit completed.")
     return current_model, all_metrics
 
-def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH, test_generation=False):
+def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH,datatype, test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -182,7 +182,7 @@ def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_P
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
             print(f"Testing knowledge retention after {i+1} edits...")
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
@@ -192,7 +192,7 @@ def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_P
     print("CAKE_KL multi-edit completed.")
     return current_model, all_metrics
 
-def cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH, test_generation=False):
+def cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH,datatype, test_generation=False):
     current_model = model
     current_training_times = []
     edited_items = []    
@@ -203,7 +203,7 @@ def cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH, test_genera
     edited_items.append(item)
     current_training_times.append(exec_time)
     print(f"Testing knowledge retention after editing...")
-    test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+    test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
     current_training_times = []
     edited_items = []
     current_model = None

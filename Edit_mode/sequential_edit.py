@@ -1,7 +1,7 @@
 from edit_utils import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload
 from eval_utils import test_current_edited_knowledge
 
-def cake_sequential_edit(base_model, tokenizer, items_list, hparams, edit_freq, test_generation=False):    
+def cake_sequential_edit(base_model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):    
     current_model = base_model
     all_metrics = []
     current_training_times = []
@@ -14,14 +14,14 @@ def cake_sequential_edit(base_model, tokenizer, items_list, hparams, edit_freq, 
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
     print("CAKE sequential-edit completed!")
     return current_model, all_metrics
 
-def sequential_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq, test_generation=False):
+def sequential_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq,datatype, test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -33,14 +33,14 @@ def sequential_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
     print("ROME sequential-edit completed!")
     return current_model, all_metrics
 
-def sequential_edit_wise(model, tokenizer, items_list, hparams, loc_data, initial_loc_index, apply_algo, edit_freq, test_generation=False):
+def sequential_edit_wise(model, tokenizer, items_list, hparams, loc_data, initial_loc_index, apply_algo, edit_freq, datatype,test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -54,14 +54,14 @@ def sequential_edit_wise(model, tokenizer, items_list, hparams, loc_data, initia
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
     print("WISE sequential-edit completed!")
     return current_model, all_metrics
 
-def sequential_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, edit_freq, test_generation=False):
+def sequential_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, edit_freq,datatype, test_generation=False):
     current_model = model
     all_metrics = []
     current_training_times = []
@@ -74,7 +74,7 @@ def sequential_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo,
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
-            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, test_generation)
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
