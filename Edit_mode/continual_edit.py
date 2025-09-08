@@ -80,3 +80,34 @@ def continual_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, 
             edited_items = []
     print(f"{alg_name} continual-edit completed!")
     return current_model, all_metrics
+
+from UltraEdit_method.edit_utils import cleanup_ultraedit_cache, create_ultraedit_components, execute_ultraedit_batch
+def continual_edit_ultraedit(model, tokenizer, items_list, hparams, edit_freq, datatype, test_generation=False):
+    current_model = model
+    all_metrics = []
+    current_training_times = []
+    edited_items = []
+    accumulated_items = []
+    batch_idx = 0
+    print("Starting UltraEdit continual-edit...")
+    ultraedit_components = create_ultraedit_components(current_model, hparams)
+    for i, item in enumerate(items_list):
+        print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
+        accumulated_items.append(item)
+        edited_items.append(item)
+        current_training_times.append(0)
+        if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
+            print(f"Applying UltraEdit for {len(accumulated_items)} knowledge points...")
+            exec_time = execute_ultraedit_batch(current_model, tokenizer, accumulated_items, ultraedit_components, hparams, batch_idx, edit_freq)
+            current_training_times[-1] = exec_time
+            print(f"Testing knowledge retention after {i+1} edits...")
+            accumulated_items = []
+            batch_idx += 1
+        if (i + 1) == len(items_list):
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype, test_generation)
+            all_metrics.extend(test_metrics)
+            current_training_times = []
+            edited_items = []
+    cleanup_ultraedit_cache()
+    print("UltraEdit continual-edit completed.")
+    return current_model, all_metrics
