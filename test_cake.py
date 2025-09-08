@@ -26,6 +26,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_type', default=None,type=str)
     parser.add_argument('--edit_mode', default='single_edit', choices=['single_edit', 'multi_edit','sequential_edit', 'continual_edit'], type=str)
     parser.add_argument('--edit_freq', default=10, type=int)
+    parser.add_argument('--kl_lambda', default=0.05, type=float)
     args = parser.parse_args()
 
     if args.editing_method == 'MEMIT' or args.editing_method == 'IFMET':
@@ -51,6 +52,8 @@ if __name__ == "__main__":
     else:
         hparams=editing_hparams.from_hparams(f'./EasyEdit/hparams/{args.editing_method}/{args.model_type}.yaml')
     
+    if args.editing_method in ['CAKE_KL', 'CAKE_Batch_KL']:
+        hparams.kl_lambda = args.kl_lambda
     if args.editing_method != 'Mello' and args.editing_method != 'CAKE_WISE':
         alg_name = hparams.alg_name
         apply_algo = ALG_DICT[alg_name]
@@ -110,10 +113,11 @@ if __name__ == "__main__":
             all_metrics.append(metrics)
         res = calculate_averages(all_metrics)
         os.makedirs(args.metrics_save_dir,exist_ok=True)
-        json.dump(all_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_metrics_2025_9_3_kl_0_0_5.json','w'),indent=4)
-        json.dump(res, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_res_2025_9_3_kl_0_0_5.json','w'),indent=4)
-
-    
+        kl_suffix = f"_kl_{str(args.kl_lambda).replace('.', '_')}" if args.editing_method in ['CAKE_KL', 'CAKE_Batch_KL'] else ""
+        json.dump(all_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_metrics{kl_suffix}.json','w'),indent=4)
+        json.dump(res, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_res{kl_suffix}.json','w'),indent=4)
+        
+        
     elif args.edit_mode == 'sequential_edit':
         print("Evaluating sequential-edit retention...")    
         edit_freq = args.edit_freq
@@ -142,8 +146,9 @@ if __name__ == "__main__":
         #     model, metrics = sequential_edit_ifmet(model, tokenizer, sequential_edit_items, hparams_s, hparams_d, apply_algo, datatype, test_generation=False)
         res_retention = calculate_averages(sequential_edit_metrics)
         os.makedirs(args.metrics_save_dir,exist_ok=True)
-        json.dump(sequential_edit_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_metrics_2025_9_3.json','w'),indent=4)
-        json.dump(res_retention, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_res_2025_9_3.json','w'),indent=4)
+        kl_suffix = f"_kl_{str(args.kl_lambda).replace('.', '_')}" if args.editing_method in ['CAKE_KL', 'CAKE_Batch_KL'] else ""
+        json.dump(sequential_edit_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_metrics{kl_suffix}.json','w'),indent=4)
+        json.dump(res_retention, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_res{kl_suffix}.json','w'),indent=4)
 
     elif args.edit_mode == 'continual_edit':
         print("Evaluating continual-edit retention...")    
@@ -173,10 +178,10 @@ if __name__ == "__main__":
         #     model, metrics = continual_edit_ifmet(model, tokenizer, continual_edit_items, hparams_s, hparams_d, apply_algo, datatype, test_generation=False)
         res_retention = calculate_averages(continual_edit_metrics)
         os.makedirs(args.metrics_save_dir,exist_ok=True)
-        json.dump(continual_edit_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_metrics_2025_9_3_kl_0_0_5.json','w'),indent=4)
-        json.dump(res_retention, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_res_2025_9_3_kl_0_0_5.json','w'),indent=4)
+        kl_suffix = f"_kl_{str(args.kl_lambda).replace('.', '_')}" if args.editing_method in ['CAKE_KL', 'CAKE_Batch_KL'] else ""
+        json.dump(continual_edit_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_metrics{kl_suffix}.json','w'),indent=4)
+        json.dump(res_retention, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_res{kl_suffix}.json','w'),indent=4)
 
-    
     elif args.edit_mode == 'multi_edit':
         print("Evaluating multi-edit retention...")    
         edit_freq = args.edit_freq
@@ -206,5 +211,6 @@ if __name__ == "__main__":
         #     model, metrics = multi_edit_ifmet(model, tokenizer, multi_edit_items, hparams_s, hparams_d, apply_algo, datatype, test_generation=False)
         res_retention = calculate_averages(multi_edit_metrics)
         os.makedirs(args.metrics_save_dir,exist_ok=True)
-        json.dump(multi_edit_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_metrics_2025_9_3.json','w'),indent=4)
-        json.dump(res_retention, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_res_2025_9_3.json','w'),indent=4)
+        kl_suffix = f"_kl_{str(args.kl_lambda).replace('.', '_')}" if args.editing_method in ['CAKE_KL', 'CAKE_Batch_KL'] else ""
+        json.dump(multi_edit_metrics, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_metrics{kl_suffix}.json','w'),indent=4)
+        json.dump(res_retention, open(f'{args.metrics_save_dir}/{args.editing_method}_{args.model_type}_{args.datatype}_{args.edit_mode}_freq_{args.edit_freq}_res{kl_suffix}.json','w'),indent=4)

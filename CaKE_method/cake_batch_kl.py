@@ -91,9 +91,8 @@ def cake_batch_kl_return_lora_weights(original_model, tokenizer, items_list, hpa
             logging_steps=10,
             report_to="none",
         )
-    # kl_lambda = getattr(hparams, 'kl_lambda', 0.05)
-    # kl_lambda = getattr(hparams, 'kl_lambda', 0.1)
-    kl_lambda = getattr(hparams, 'kl_lambda', 0.2)
+    kl_lambda = getattr(hparams, 'kl_lambda', 0.05)
+    print(f"Using kl_lambda = {kl_lambda} for batch KL training")
     trainer = CakeKLTrainer(
         original_model_ref=original_model,
         kl_lambda=kl_lambda,

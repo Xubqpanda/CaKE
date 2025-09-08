@@ -89,8 +89,7 @@ def cake_kl_return_lora_weights(original_model, tokenizer, item, hparams, test_g
             report_to="none",
         )
     kl_lambda = getattr(hparams, 'kl_lambda', 0.05)
-    # kl_lambda = getattr(hparams, 'kl_lambda', 0.1)
-    # kl_lambda = getattr(hparams, 'kl_lambda', 0.2)
+    print(f"Using kl_lambda = {kl_lambda}")
     trainer = CakeKLTrainer(
         original_model_ref=original_model,
         kl_lambda=kl_lambda,
