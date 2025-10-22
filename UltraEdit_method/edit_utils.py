@@ -44,29 +44,27 @@ def pad_tensor(tensor, target_length, dim=0, padding_value=0):
 
 def prepare_ultraedit_data(edit_item, tokenizer, model, hparams):
     edit_data = []
+    prompt = edit_item["update"]
+    target = edit_item["ans"]
+    main_sample = create_ultraedit_sample(prompt, target, tokenizer, model)
+    edit_data.append(main_sample)    
     for rewrite in edit_item['requested_rewrite']:
-        prompt = rewrite['prompt'].format(rewrite['subject'])
-        target = rewrite['target_new']['str']
-        main_sample = create_ultraedit_sample(prompt, target, tokenizer, model)
-        edit_data.append(main_sample)
-        if 'rephrase_prompt' in rewrite:
-            for rephrase_item in rewrite['rephrase_prompt']:
-                rephrase_sample = create_ultraedit_sample(
-                    rephrase_item['question'], 
-                    rephrase_item['answer'], 
-                    tokenizer, 
-                    model
-                )
-                edit_data.append(rephrase_sample)
-        if 'learning_prompt' in rewrite:
-            for learning_item in rewrite['learning_prompt']:
-                learning_sample = create_ultraedit_sample(
-                    learning_item['question'],
-                    learning_item['answer'],
-                    tokenizer,
-                    model
-                )
-                edit_data.append(learning_sample)
+        for rephrase_item in rewrite['rephrase_prompt']:
+            rephrase_sample = create_ultraedit_sample(
+                rephrase_item['question'], 
+                rephrase_item['answer'], 
+                tokenizer, 
+                model
+            )
+            edit_data.append(rephrase_sample)
+        for learning_item in rewrite['learning_prompt']:
+            learning_sample = create_ultraedit_sample(
+                learning_item['question'],
+                learning_item['answer'],
+                tokenizer,
+                model
+            )
+            edit_data.append(learning_sample)
     
     return edit_data
 
@@ -90,9 +88,6 @@ def create_ultraedit_sample(prompt, target, tokenizer, model):
         tok_answer["input_ids"]
     ), -1)
 
-    device = next(model.parameters()).device
-    tok_tuples = {k: v.to(device) for k, v in tok_tuples.items()}
-    
     return tok_tuples
 
 def pad_tok_tuples(tok_tuples_list: List[Dict[str, torch.LongTensor]], device) -> Dict[str, torch.LongTensor]:
@@ -175,8 +170,7 @@ def create_shape_counter(model, hparams):
     
     shape_counter = Counter()
     name2idx = {}
-    edit_modules = ["model.layers.{}.mlp.up_proj".format(i) for i in range(model.config.num_hidden_layers)] + \
-                  ["model.layers.{}.mlp.down_proj".format(i) for i in range(model.config.num_hidden_layers)]
+    edit_modules = hparams.edit_modules
     for module_name in edit_modules:
         shape = get_shape(get_module(model, module_name))
         name2idx[module_name] = shape_counter[shape]
@@ -218,7 +212,7 @@ def cache_activations_and_gradients(model, edit_data, components, hparams, batch
         torch.save(values_grad, f"{cache_dir}/{module_idx}_{batch_idx}_values_grad.pth")
             
 def predict_parameter_shifts(model, components, hparams, batch_idx, edit_freq):
-    lr = 1e-3
+    lr = 1e-6
     normalizer = components['normalizer']
     edit_modules = components['edit_modules']
     cache_dir = f"./ultraedit_cache/"

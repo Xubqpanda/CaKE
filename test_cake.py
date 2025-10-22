@@ -1,4 +1,4 @@
-from EasyEdit.easyeditor import MEMITHyperParams,LoRAHyperParams,WISEHyperParams, ROMEHyperParams, CAKEWISEHyperParams, AlphaEditHyperParams
+from EasyEdit.easyeditor import MEMITHyperParams,LoRAHyperParams,WISEHyperParams, ROMEHyperParams, CAKEWISEHyperParams, AlphaEditHyperParams, UltraEditHyperParams
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 import argparse
 from tqdm import tqdm
@@ -28,7 +28,6 @@ if __name__ == "__main__":
     parser.add_argument('--edit_freq', default=10, type=int)
     parser.add_argument('--kl_lambda', default=0.05, type=float)
     args = parser.parse_args()
-
     if args.editing_method == 'MEMIT' or args.editing_method == 'IFMET':
         editing_hparams = MEMITHyperParams
     elif args.editing_method == 'LoRA':
@@ -41,6 +40,8 @@ if __name__ == "__main__":
         editing_hparams = CAKEWISEHyperParams
     elif args.editing_method == 'AlphaEdit':
         editing_hparams = AlphaEditHyperParams
+    elif args.editing_method == 'UltraEdit':
+        editing_hparams = UltraEditHyperParams
     else:
         editing_hparams = LoRAHyperParams
     if args.editing_method == 'CAKE' or args.editing_method == 'Mello' or args.editing_method == 'CAKE_KL' or args.editing_method == 'CAKE_Batch' or args.editing_method == 'CAKE_OverTone' or args.editing_method == 'CAKE_Batch_KL':
@@ -54,14 +55,15 @@ if __name__ == "__main__":
     
     if args.editing_method in ['CAKE_KL', 'CAKE_Batch_KL']:
         hparams.kl_lambda = args.kl_lambda
-    if args.editing_method != 'Mello' and args.editing_method != 'CAKE_WISE':
+    if args.editing_method != 'Mello' and args.editing_method != 'CAKE_WISE' and args.editing_method != 'UltraEdit':
         alg_name = hparams.alg_name
         apply_algo = ALG_DICT[alg_name]
 
     MODEL_PATH = hparams.model_name
     if args.editing_method == 'CAKE' or args.editing_method == 'CAKE_WISE' \
         or args.editing_method == 'CAKE_KL' or args.editing_method == 'CAKE_Batch' \
-        or args.editing_method == 'CAKE_OverTone' or args.editing_method == 'CAKE_Batch_KL':
+        or args.editing_method == 'CAKE_OverTone' or args.editing_method == 'CAKE_Batch_KL'\
+        or args.editing_method == 'UltraEdit':
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto",torch_dtype=torch.bfloat16)
     else:
         model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, device_map="auto",torch_dtype=torch.float32)
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     tokenizer.pad_token = tokenizer.eos_token
 
     import json
-    data = json.load(open(f'./datasets/{args.datatype}-cake.json','r'))
+    data = json.load(open(f'./datasets/{args.datatype}-new-cake.json','r'))
     datatype = args.datatype
     if args.editing_method == 'WISE':
         loc_data = json.load(open('./datasets/ZsRE/zsre_mend_train.json','r'))
@@ -170,7 +172,7 @@ if __name__ == "__main__":
         elif args.editing_method == 'WISE':
             metrics, continual_edit_metrics = continual_edit_wise(model, tokenizer, continual_edit_items, hparams, loc_data, loc_index, apply_algo, edit_freq, datatype, test_generation=False) 
         elif args.editing_method == 'UltraEdit':
-            metrics, continual_edit_metrics = continual_edit_ultraedit(model, tokenizer, continual_edit_items, hparams, loc_data, loc_index, apply_algo, edit_freq, datatype, test_generation=False) 
+            metrics, continual_edit_metrics = continual_edit_ultraedit(model, tokenizer, continual_edit_items, hparams, edit_freq, datatype, test_generation=False) 
         else:
             model, continual_edit_metrics = continual_edit(model, tokenizer, continual_edit_items, hparams, alg_name, apply_algo, edit_freq, datatype, test_generation=False)
         # TODO
