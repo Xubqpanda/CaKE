@@ -427,6 +427,7 @@ def edit_rome(model, tokenizer, edit_item, hparams, apply_algo,datatype,test_gen
         for k, v in origin_weights_copy.items():
             nethook.get_parameter(model, k)[...] = v.to(f"cuda:{hparams.device}")
     return edited_model, metrics
+
 def edit_ifmet(model, tokenizer, edit_item, hparams_s, hparams_d, apply_algo,datatype,test_generation=False):
     start = time()
     requests = edit_item['requested_rewrite']
@@ -586,6 +587,53 @@ def cake_no_unload(original_model, tokenizer, item, hparams, test_generation=Fal
 
     return model, exec_time
 
+def lora_no_unload(original_model, tokenizer, item, hparams, test_generation=False):
+    target_modules = hparams.target_modules 
+    model = create_lora_model(original_model, target_modules=target_modules,)
+    model.enable_input_require_grads()
+    train_examples = []
+    item_case_examples = []
+    learning_examples = []
+    for rewrite in item['requested_rewrite']:
+        prompt = rewrite['prompt'].format(rewrite['subject'])
+        target = rewrite['target_new']['str']
+        item_case_examples.append({
+            "text": prompt,
+            "target": target
+        })
+    train_examples.append({'item_case_examples':item_case_examples,'learning_examples':learning_examples})
+    train_dataset = Dataset.from_list(train_examples)
+    train_dataset = train_dataset.map(
+        preprocess_function_chat,
+        batched=True,
+        remove_columns=train_dataset.column_names,
+        fn_kwargs={"tokenizer": tokenizer,"model": model}
+    )
+
+    training_args = TrainingArguments(
+            output_dir=f'./output/',
+            overwrite_output_dir=True,
+            num_train_epochs=hparams.num_steps,
+            per_device_train_batch_size=hparams.batch_size,
+            learning_rate=hparams.lr,
+            save_strategy="no",
+            bf16=True,
+            logging_steps=10,
+            report_to="none",
+        )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+    )
+    start = time()
+    trainer.train()
+    exec_time = time() - start
+    # the key difference is that we do not unload the model here
+
+    return model, exec_time
+
 def rome_no_unload(model, tokenizer, edit_item, hparams, apply_algo,test_generation=False):
     # all_metrics = []
     start = time()
@@ -629,3 +677,4 @@ def wise_no_unload(model, tokenizer, edit_item, hparams, loc_data, loc_index, ap
         return edited_model.model, exec_time, new_loc_index, weights_copy
     else:
         return edited_model, exec_time, new_loc_index, weights_copy
+

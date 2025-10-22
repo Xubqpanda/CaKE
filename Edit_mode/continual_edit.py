@@ -1,4 +1,4 @@
-from edit_utils import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload
+from edit_utils import cake_no_unload, rome_no_unload, wise_no_unload, edit_no_unload, lora_no_unload
 from eval_utils import test_current_edited_knowledge
 
 def cake_continual_edit(base_model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):    
@@ -19,6 +19,26 @@ def cake_continual_edit(base_model, tokenizer, items_list, hparams, edit_freq,da
             current_training_times = []
             edited_items = []
     print("CAKE continual-edit completed!")
+    return current_model, all_metrics
+
+def continual_edit_lora(base_model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):    
+    current_model = base_model
+    all_metrics = []
+    current_training_times = []
+    edited_items = [] 
+    print("Starting LoRA continual-edit...")
+    for i, item in enumerate(items_list):
+        print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
+        current_model, exec_time = lora_no_unload(current_model, tokenizer, item, hparams, test_generation)
+        current_model = current_model.merge_and_unload()  
+        edited_items.append(item)
+        current_training_times.append(exec_time)
+        if (i + 1) == len(items_list):
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)
+            all_metrics.extend(test_metrics)
+            current_training_times = []
+            edited_items = []
+    print("LoRA continual-edit completed!")
     return current_model, all_metrics
 
 def continual_edit_rome(model, tokenizer, items_list, hparams, apply_algo, edit_freq,datatype, test_generation=False):
@@ -58,6 +78,8 @@ def continual_edit_wise(model, tokenizer, items_list, hparams, loc_data, initial
             all_metrics.extend(test_metrics)
             current_training_times = []
             edited_items = []
+    if hasattr(current_model, 'peft_config') and current_model.peft_config is not None:
+        current_model = current_model.merge_and_unload()
     print("WISE continual-edit completed!")
     return current_model, all_metrics
 
@@ -70,7 +92,7 @@ def continual_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, 
     print(f"Starting {alg_name} continual-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        current_model, exec_time, weights_copy = edit_no_unload(current_model, tokenizer, item, hparams, alg_name, apply_algo, test_generation)
+        current_model, exec_time, weights_copy = edit_no_unload(current_model, tokenizer, item, hparams, alg_name, apply_algo, test_generation) 
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i + 1) == len(items_list):
@@ -79,6 +101,25 @@ def continual_edit(model, tokenizer, items_list, hparams, alg_name, apply_algo, 
             current_training_times = []
             edited_items = []
     print(f"{alg_name} continual-edit completed!")
+    return current_model, all_metrics
+
+def continual_eval(model, tokenizer, items_list, hparams, edit_freq, datatype, test_generation=False):
+    current_model = model
+    all_metrics = []
+    current_training_times = []
+    edited_items = []
+    original_weights = None
+    print(f"Starting continual-eval...")
+    for i, item in enumerate(items_list):
+        print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
+        edited_items.append(item)
+        current_training_times.append(0)
+        if (i + 1) == len(items_list):
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype,test_generation)
+            all_metrics.extend(test_metrics)
+            current_training_times = []
+            edited_items = []
+    print(f"continual-eval completed!")
     return current_model, all_metrics
 
 from UltraEdit_method.edit_utils import cleanup_ultraedit_cache, create_ultraedit_components, execute_ultraedit_batch

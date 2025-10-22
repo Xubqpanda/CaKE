@@ -54,9 +54,8 @@ def check_answer_chat(model,question, tokenizer,answer, device,max_new_tokens=50
     return accuracy
 
 def get_response(model, tok, messages,device, max_new_tokens=1):
-    terminators = [tok.eos_token_id, tok.convert_tokens_to_ids("<|eot_id|>")]
     msg_tokenized = tok.apply_chat_template(messages, add_generation_prompt=True, return_tensors='pt', return_dict=True).to(device)
-    output_ids = model.generate(**msg_tokenized, max_new_tokens=max_new_tokens, eos_token_id=terminators, do_sample=False, pad_token_id=tok.eos_token_id)
+    output_ids = model.generate(**msg_tokenized, max_new_tokens=max_new_tokens, do_sample=False, pad_token_id=tok.eos_token_id)
     return tok.decode(output_ids[0][msg_tokenized['input_ids'].shape[-1]:], skip_special_tokens=True).replace('\n', ' ').strip().rstrip('.')
 
 def evaluate_response(prompt_qa, output_qa, label, device, system_msg_eval):
@@ -75,7 +74,6 @@ def evaluate_response(prompt_qa, output_qa, label, device, system_msg_eval):
 
 
 def check_answer_chat_hallu(model,question, tokenizer,answer, device,system_msg,max_new_tokens=16):
-    terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
     inputs = tokenizer.apply_chat_template([{"role": "system", "content": system_msg},{"role": "user", "content": question}],return_tensors="pt").to(device)
     outputs = model.generate(
         input_ids=inputs,
@@ -83,8 +81,7 @@ def check_answer_chat_hallu(model,question, tokenizer,answer, device,system_msg,
         do_sample=False, 
         temperature=None,
         top_p=None,
-        pad_token_id=tokenizer.eos_token_id,
-        eos_token_id=terminators
+        pad_token_id=tokenizer.eos_token_id
     )
     generated_text = tokenizer.decode(outputs[0][inputs.shape[1]:],skip_special_tokens=True).replace('\n', ' ').strip().rstrip('.')
     print(f"Question: {question}")
@@ -137,7 +134,7 @@ def compute_edit_quality(model, tokenizer, edit_item, hparams, datatype, test_ge
         ans = [edit_item['loc_ans']]
         metrics['locality-accuracy'].append(check_answer_chat(model,'Question: '+edit_item['loc']+'\nPlease answer the question directly.',tokenizer,ans,device,max_new_tokens=50))
 
-    elif datatype == 'MQuAKE-T':
+    elif datatype == 'MQuAKE-T' or datatype == 'MQuAKE-CF-3k' or datatype == 'MQuAKE-CF-3k-v2':
         metrics = {
         'hop_wise':[],
         'accuracy':[],
@@ -152,7 +149,7 @@ def compute_edit_quality(model, tokenizer, edit_item, hparams, datatype, test_ge
         answer.append(edit_item['new_answer'])
         metrics['accuracy'].append(check_answer_chat(model,'Question: ' + edit_item['questions'][0]+' Answer: The answer is',tokenizer,answer,device,max_new_tokens=50))
     
-    elif datatype == 'halluedit_meta_llama_3_8b_instruct':
+    elif datatype == 'halluedit_meta_llama_3_8b_instruct' or 'halluedit_qwen_2_5_7b_instruct':
         metrics = {
             'efficacy': [],           # Efficacy
             'generalization': [],     # Generalization - Rephrase

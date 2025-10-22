@@ -42,8 +42,58 @@ class CakeKLTrainer(Trainer):
         return (total_loss, outputs) if return_outputs else total_loss
 
 def cake_batch_kl_return_lora_weights(original_model, tokenizer, items_list, hparams, test_generation=False):
+    ## original ##
+    # target_modules = ["up_proj","down_proj"]
+    ##  test 0 ## 
+    # target_modules = [
+    # "model.layers.0.mlp.up_proj",
+    # "model.layers.1.mlp.up_proj",
+    # "model.layers.2.mlp.up_proj",
+    # "model.layers.25.mlp.up_proj",
+    # "model.layers.26.mlp.up_proj",
+    # "model.layers.27.mlp.up_proj",
+    # "model.layers.0.mlp.down_proj",
+    # "model.layers.1.mlp.down_proj",
+    # "model.layers.2.mlp.down_proj",
+    # "model.layers.25.mlp.down_proj",
+    # "model.layers.26.mlp.down_proj",
+    # "model.layers.27.mlp.down_proj",
+    # ]
+    ##  test 1 ##
+    # target_modules = [
+    # "up_proj","down_proj",
+    # "model.layers.0.mlp.gate_proj",
+    # "model.layers.1.mlp.gate_proj",
+    # "model.layers.2.mlp.gate_proj",
+    # "model.layers.25.mlp.gate_proj",
+    # "model.layers.26.mlp.gate_proj",
+    # "model.layers.27.mlp.gate_proj",
+    # ]
+    ##  test 2 ##
+    # target_modules = ["up_proj","down_proj", "gate_proj"]
+    ## test 3 ##
+    target_modules = ["up_proj","down_proj", "gate_proj",
+    "model.layers.0.self_attn.q_proj", "model.layers.0.self_attn.v_proj",  
+    "model.layers.1.self_attn.q_proj", "model.layers.1.self_attn.v_proj",  
+    "model.layers.27.self_attn.q_proj", "model.layers.27.self_attn.v_proj",
+    "model.layers.2.self_attn.q_proj", "model.layers.2.self_attn.v_proj",    
+    "model.layers.3.self_attn.q_proj", "model.layers.3.self_attn.v_proj",  
+    "model.layers.26.self_attn.q_proj", "model.layers.26.self_attn.v_proj",
+    "model.layers.24.self_attn.q_proj", "model.layers.24.self_attn.v_proj",
+    ]
+    ## test 4 ##
+    # target_modules = ["up_proj","down_proj", "gate_proj",
+    # "model.layers.0.self_attn.q_proj", "model.layers.0.self_attn.v_proj",  "model.layers.0.self_attn.k_proj", "model.layers.0.self_attn.o_proj",  
+    # "model.layers.1.self_attn.q_proj", "model.layers.1.self_attn.v_proj",  "model.layers.1.self_attn.k_proj", "model.layers.1.self_attn.o_proj", 
+    # "model.layers.27.self_attn.q_proj", "model.layers.27.self_attn.v_proj", "model.layers.27.self_attn.k_proj", "model.layers.27.self_attn.o_proj",
+    # "model.layers.2.self_attn.q_proj", "model.layers.2.self_attn.v_proj",   "model.layers.2.self_attn.k_proj", "model.layers.2.self_attn.o_proj",    
+    # "model.layers.3.self_attn.q_proj", "model.layers.3.self_attn.v_proj",  "model.layers.3.self_attn.k_proj", "model.layers.3.self_attn.o_proj", 
+    # "model.layers.26.self_attn.q_proj", "model.layers.26.self_attn.v_proj",  "model.layers.26.self_attn.k_proj", "model.layers.26.self_attn.o_proj",
+    # "model.layers.24.self_attn.q_proj", "model.layers.24.self_attn.v_proj", "model.layers.24.self_attn.k_proj", "model.layers.24.self_attn.o_proj",
+    # ]
+    ## test 5 ##
     # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
-    target_modules = ["up_proj","down_proj"]
+    
     model = create_lora_model(original_model,target_modules=target_modules)
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
@@ -84,8 +134,8 @@ def cake_batch_kl_return_lora_weights(original_model, tokenizer, items_list, hpa
             output_dir=f'./output/',
             overwrite_output_dir=True,
             num_train_epochs=30,
-            per_device_train_batch_size=2,
-            learning_rate=5e-5,
+            per_device_train_batch_size=8,
+            learning_rate=1e-5,
             save_strategy="no",
             bf16=True,
             logging_steps=10,
@@ -180,6 +230,30 @@ def cake_batch_kl_continual_edit(model, tokenizer, items_list, hparams, edit_fre
             edited_items = []
     print("CAKE_Batch_KL continual-edit completed.")
     return current_model, all_metrics
+
+
+def cake_batch_kl_continual_eval(model, tokenizer, items_list, hparams, edit_freq, datatype,test_generation=False):
+    current_model = model
+    all_metrics = []
+    current_training_times = []
+    edited_items = []
+    accumulated_items = [] 
+    print("Starting CAKE_Batch_KL continual-eval...")
+    for i, item in enumerate(items_list):
+        print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
+        accumulated_items.append(item)
+        edited_items.append(item) 
+        # the last item of the batch shows the total training time
+        current_training_times.append(0)
+        if (i + 1) == len(items_list):
+            print(f"Testing knowledge retention after {i+1} edits...")
+            test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
+            all_metrics.extend(test_metrics)
+            current_training_times = []
+            edited_items = []
+    print("CAKE_Batch_KL continual-edit completed.")
+    return current_model, all_metrics
+
 
 def cake_batch_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH,datatype, test_generation=False):
     current_model = model
