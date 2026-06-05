@@ -11,6 +11,11 @@ from transformers import TrainingArguments, Trainer, AutoModelForCausalLM
 from peft import get_peft_model_state_dict, get_peft_model, set_peft_model_state_dict, LoraConfig, TaskType
 from edit_utils import preprocess_function_chat, create_lora_model
 from eval_utils import test_current_edited_knowledge
+
+
+DEFAULT_TARGET_MODULES = ["up_proj", "down_proj"]
+
+
 class CakeKLTrainer(Trainer):
     def __init__(self, original_model_ref, kl_lambda, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -40,9 +45,7 @@ class CakeKLTrainer(Trainer):
         return (total_loss, outputs) if return_outputs else total_loss
 
 
-def cake_kl_return_lora_weights(original_model, tokenizer, item, hparams, test_generation=False):
-    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
-    target_modules = ["up_proj","down_proj"]
+def cake_kl_return_lora_weights(original_model, tokenizer, item, target_modules, hparams, test_generation=False):
     model = create_lora_model(original_model,target_modules=target_modules)
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
@@ -104,10 +107,7 @@ def cake_kl_return_lora_weights(original_model, tokenizer, item, hparams, test_g
     model = model.unload()
     return lora_weights, exec_time
 
-def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
-    
-    # target_modules = ["q_proj", "v_proj", "k_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
-    target_modules = ["up_proj","down_proj"]
+def apply_lora_weights_to_model(base_model, lora_weights, target_modules, hparams=None):
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         inference_mode=False,
@@ -124,14 +124,15 @@ def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
 
 def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []    
     print("Starting CAKE_KL sequential-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
-        current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+        lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
+        current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
         current_model = current_model.merge_and_unload()  
         edited_items.append(item)
         current_training_times.append(exec_time)
@@ -146,14 +147,15 @@ def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,dat
 
 def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []    
     print("Starting CAKE_KL continual-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
-        current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+        lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
+        current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
         current_model = current_model.merge_and_unload()  
         edited_items.append(item)
         current_training_times.append(exec_time)
@@ -168,14 +170,15 @@ def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq,data
 
 def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH,datatype, test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []    
     print("Starting CAKE_KL multi-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
-        current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+        lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
+        current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
         current_model = current_model.merge_and_unload()  
         edited_items.append(item)
         current_training_times.append(exec_time)
@@ -193,11 +196,12 @@ def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_P
 
 def cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH,datatype, test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     current_training_times = []
     edited_items = []    
     print("Starting CAKE_KL single-edit...")
-    lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
-    current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+    lora_weights, exec_time = cake_kl_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
+    current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
     current_model = current_model.merge_and_unload()  
     edited_items.append(item)
     current_training_times.append(exec_time)

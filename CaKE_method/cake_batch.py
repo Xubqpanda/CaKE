@@ -12,9 +12,10 @@ from peft import get_peft_model_state_dict, get_peft_model, set_peft_model_state
 from edit_utils import  preprocess_function_chat, create_lora_model
 from eval_utils import test_current_edited_knowledge, compute_edit_quality
 
-def cake_batch_return_lora_weights(original_model, tokenizer, items_list, hparams, test_generation=False):
-    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
-    target_modules = ["up_proj","down_proj"]
+DEFAULT_TARGET_MODULES = ["up_proj", "down_proj"]
+
+
+def cake_batch_return_lora_weights(original_model, tokenizer, items_list, target_modules, hparams, test_generation=False):
     model = create_lora_model(original_model,target_modules=target_modules)
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
@@ -75,10 +76,7 @@ def cake_batch_return_lora_weights(original_model, tokenizer, items_list, hparam
     model = model.unload()
     return lora_weights, exec_time
 
-def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
-    
-    # target_modules = ["q_proj", "v_proj", "k_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
-    target_modules = ["up_proj","down_proj"]
+def apply_lora_weights_to_model(base_model, lora_weights, target_modules, hparams=None):
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         inference_mode=False,
@@ -95,6 +93,7 @@ def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
  
 def cake_batch_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -108,9 +107,9 @@ def cake_batch_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,
         current_training_times.append(0)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
             print(f"Training LoRA for {len(accumulated_items)} knowledge points...")
-            lora_weights, exec_time = cake_batch_return_lora_weights(current_model, tokenizer, accumulated_items, hparams, test_generation)
+            lora_weights, exec_time = cake_batch_return_lora_weights(current_model, tokenizer, accumulated_items, target_modules, hparams, test_generation)
             current_training_times.append(exec_time)
-            current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+            current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
             current_model = current_model.merge_and_unload()
             print(f"Testing knowledge retention after {i+1} edits...")
             test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)
@@ -123,6 +122,7 @@ def cake_batch_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,
 
 def cake_batch_continual_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -136,9 +136,9 @@ def cake_batch_continual_edit(model, tokenizer, items_list, hparams, edit_freq,d
         current_training_times.append(0)
         if (i+1) % edit_freq == 0:
             print(f"Training LoRA for {len(accumulated_items)} knowledge points...")
-            lora_weights, exec_time = cake_batch_return_lora_weights(current_model, tokenizer, accumulated_items, hparams, test_generation)
+            lora_weights, exec_time = cake_batch_return_lora_weights(current_model, tokenizer, accumulated_items, target_modules, hparams, test_generation)
             current_training_times.append(exec_time)
-            current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+            current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
             current_model = current_model.merge_and_unload()
             accumulated_items = []
         if (i + 1) == len(items_list):
@@ -152,6 +152,7 @@ def cake_batch_continual_edit(model, tokenizer, items_list, hparams, edit_freq,d
 
 def cake_batch_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH, datatype,test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -165,9 +166,9 @@ def cake_batch_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODE
         current_training_times.append(0)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
             print(f"Training LoRA for {len(accumulated_items)} knowledge points...")
-            lora_weights, exec_time = cake_batch_return_lora_weights(current_model, tokenizer, accumulated_items, hparams, test_generation)
+            lora_weights, exec_time = cake_batch_return_lora_weights(current_model, tokenizer, accumulated_items, target_modules, hparams, test_generation)
             current_training_times.append(exec_time)
-            current_model = apply_lora_weights_to_model(current_model, lora_weights, hparams)
+            current_model = apply_lora_weights_to_model(current_model, lora_weights, target_modules, hparams)
             current_model = current_model.merge_and_unload()
             print(f"Testing knowledge retention after {i+1} edits...")
             test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)

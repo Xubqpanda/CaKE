@@ -11,9 +11,11 @@ from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 from peft import get_peft_model_state_dict, get_peft_model, set_peft_model_state_dict, LoraConfig, TaskType
 from edit_utils import preprocess_function_chat, create_lora_model
 from eval_utils import test_current_edited_knowledge
-def cake_wise_return_lora_weights(original_model, tokenizer, item, hparams, test_generation=False):
-    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
-    target_modules = ["up_proj","down_proj"]
+
+DEFAULT_TARGET_MODULES = ["up_proj", "down_proj"]
+
+
+def cake_wise_return_lora_weights(original_model, tokenizer, item, target_modules, hparams, test_generation=False):
     model = create_lora_model(original_model,target_modules=target_modules)
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
@@ -72,10 +74,7 @@ def cake_wise_return_lora_weights(original_model, tokenizer, item, hparams, test
     model = model.unload()
     return lora_weights, exec_time
 
-def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
-    
-    # target_modules = ["q_proj", "v_proj", "k_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
-    target_modules = ["up_proj","down_proj"]
+def apply_lora_weights_to_model(base_model, lora_weights, target_modules, hparams=None):
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         inference_mode=False,
@@ -90,7 +89,7 @@ def apply_lora_weights_to_model(base_model, lora_weights, hparams=None):
     
     return peft_model
 
-def apply_lora_wise_merge(base_model, lora_weights_list, hparams):
+def apply_lora_wise_merge(base_model, lora_weights_list, target_modules, hparams):
     from EasyEdit.easyeditor.models.wise.WISE import merge_dict
     merge_alg = hparams.merge_alg
     merger = merge_dict[merge_alg]
@@ -107,7 +106,7 @@ def apply_lora_wise_merge(base_model, lora_weights_list, hparams):
             merged_lora_weights[param_name] = merged_param
         elif len(param_variants) == 1:
             merged_lora_weights[param_name] = param_variants[0]
-    return apply_lora_weights_to_model(base_model, merged_lora_weights)
+    return apply_lora_weights_to_model(base_model, merged_lora_weights, target_modules, hparams)
 
 class CakeWiseState:
     def __init__(self):
@@ -124,6 +123,7 @@ cake_wise_state = CakeWiseState()
  
 def cake_wise_sequential_edit(model, tokenizer, items_list, hparams, edit_freq, datatype,test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -131,13 +131,13 @@ def cake_wise_sequential_edit(model, tokenizer, items_list, hparams, edit_freq, 
     print("Starting CAKE_WISE sequential-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        lora_weights, exec_time = cake_wise_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
+        lora_weights, exec_time = cake_wise_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
         accumulated_lora_weights.append(lora_weights)
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
             print(f"Merging {len(accumulated_lora_weights)} LoRA weights...")
-            current_model = apply_lora_wise_merge(current_model, accumulated_lora_weights, hparams)
+            current_model = apply_lora_wise_merge(current_model, accumulated_lora_weights, target_modules, hparams)
             current_model = current_model.merge_and_unload()
             print(f"Testing knowledge retention after {i+1} edits...")
             test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times, datatype,test_generation)
@@ -150,6 +150,7 @@ def cake_wise_sequential_edit(model, tokenizer, items_list, hparams, edit_freq, 
 
 def cake_wise_continual_edit(model, tokenizer, items_list, hparams, edit_freq, datatype,test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -157,13 +158,13 @@ def cake_wise_continual_edit(model, tokenizer, items_list, hparams, edit_freq, d
     print("Starting CAKE_WISE continual-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        lora_weights, exec_time = cake_wise_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
+        lora_weights, exec_time = cake_wise_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
         accumulated_lora_weights.append(lora_weights)
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0:
             print(f"Merging {len(accumulated_lora_weights)} LoRA weights...")
-            current_model = apply_lora_wise_merge(current_model, accumulated_lora_weights, hparams)
+            current_model = apply_lora_wise_merge(current_model, accumulated_lora_weights, target_modules, hparams)
             current_model = current_model.merge_and_unload()
             accumulated_lora_weights = []
         if (i + 1) == len(items_list):
@@ -177,6 +178,7 @@ def cake_wise_continual_edit(model, tokenizer, items_list, hparams, edit_freq, d
 
 def cake_wise_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH, datatype,test_generation=False):
     current_model = model
+    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -184,13 +186,13 @@ def cake_wise_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL
     print("Starting CAKE_WISE multi-edit...")
     for i, item in enumerate(items_list):
         print(f"Processing item {i+1}/{len(items_list)}: {item.get('case_id', 'unknown')}")
-        lora_weights, exec_time = cake_wise_return_lora_weights(current_model, tokenizer, item, hparams, test_generation)
+        lora_weights, exec_time = cake_wise_return_lora_weights(current_model, tokenizer, item, target_modules, hparams, test_generation)
         accumulated_lora_weights.append(lora_weights)
         edited_items.append(item)
         current_training_times.append(exec_time)
         if (i+1) % edit_freq == 0 or (i + 1) == len(items_list):
             print(f"Merging {len(accumulated_lora_weights)} LoRA weights...")
-            current_model = apply_lora_wise_merge(current_model, accumulated_lora_weights, hparams)
+            current_model = apply_lora_wise_merge(current_model, accumulated_lora_weights, target_modules, hparams)
             current_model = current_model.merge_and_unload()
             print(f"Testing knowledge retention after {i+1} edits...")
             test_metrics = test_current_edited_knowledge(current_model, tokenizer, edited_items, hparams, current_training_times,datatype, test_generation)
