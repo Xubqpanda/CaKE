@@ -9,11 +9,8 @@ import random
 from datasets import Dataset
 from transformers import TrainingArguments, Trainer, AutoModelForCausalLM
 from peft import get_peft_model_state_dict, get_peft_model, set_peft_model_state_dict, LoraConfig, TaskType
-from edit_utils import preprocess_function_chat, create_lora_model
+from edit_utils import build_lora_training_args, preprocess_function_chat, create_lora_model, resolve_lora_training_config
 from eval_utils import test_current_edited_knowledge
-
-
-DEFAULT_TARGET_MODULES = ["up_proj", "down_proj"]
 
 
 class CakeKLTrainer(Trainer):
@@ -46,7 +43,18 @@ class CakeKLTrainer(Trainer):
 
 
 def cake_kl_return_lora_weights(original_model, tokenizer, item, target_modules, hparams, test_generation=False):
-    model = create_lora_model(original_model,target_modules=target_modules)
+    config = resolve_lora_training_config(
+        hparams,
+        method_name="cake_kl",
+        overrides={"target_modules": target_modules},
+    )
+    model = create_lora_model(
+        original_model,
+        r=config["rank"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+        target_modules=target_modules,
+    )
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
     train_examples = []
@@ -80,17 +88,7 @@ def cake_kl_return_lora_weights(original_model, tokenizer, item, target_modules,
         fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
-    training_args = TrainingArguments(
-            output_dir=f'./output/',
-            overwrite_output_dir=True,
-            num_train_epochs=30,
-            per_device_train_batch_size=2,
-            learning_rate=5e-5,
-            save_strategy="no",
-            bf16=True,
-            logging_steps=10,
-            report_to="none",
-        )
+    training_args = build_lora_training_args(config)
     kl_lambda = getattr(hparams, 'kl_lambda', 0.05)
     print(f"Using kl_lambda = {kl_lambda}")
     trainer = CakeKLTrainer(
@@ -124,7 +122,7 @@ def apply_lora_weights_to_model(base_model, lora_weights, target_modules, hparam
 
 def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_kl")["target_modules"]
     all_metrics = []
     current_training_times = []
     edited_items = []    
@@ -147,7 +145,7 @@ def cake_kl_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,dat
 
 def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_kl")["target_modules"]
     all_metrics = []
     current_training_times = []
     edited_items = []    
@@ -170,7 +168,7 @@ def cake_kl_continual_edit(model, tokenizer, items_list, hparams, edit_freq,data
 
 def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH,datatype, test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_kl")["target_modules"]
     all_metrics = []
     current_training_times = []
     edited_items = []    
@@ -196,7 +194,7 @@ def cake_kl_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_P
 
 def cake_kl_single_edit(model, tokenizer, item, hparams, MODEL_PATH,datatype, test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_kl")["target_modules"]
     current_training_times = []
     edited_items = []    
     print("Starting CAKE_KL single-edit...")

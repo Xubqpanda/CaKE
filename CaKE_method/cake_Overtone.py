@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from typing import List, Dict, Union
 from tqdm import tqdm
 from time import time
-from edit_utils import create_lora_model, preprocess_function_chat, compute_edit_quality
+from edit_utils import build_lora_training_args, create_lora_model, preprocess_function_chat, compute_edit_quality, resolve_lora_training_config
 from datasets import Dataset
 from transformers import TrainingArguments, Trainer
 from collections import Counter
@@ -165,8 +165,14 @@ class OvertoneTrainer(Trainer):
         super().log(formatted_logs)
 
 def cake_overtone(original_model, tokenizer, item, hparams, datatype,test_generation=False):
-    target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
-    model = create_lora_model(original_model,target_modules=target_modules)
+    config = resolve_lora_training_config(hparams, method_name="overtone")
+    model = create_lora_model(
+        original_model,
+        r=config["rank"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+        target_modules=config["target_modules"],
+    )
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
     
@@ -205,17 +211,7 @@ def cake_overtone(original_model, tokenizer, item, hparams, datatype,test_genera
         fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
-    training_args = TrainingArguments(
-        output_dir=f'./output/',
-        overwrite_output_dir=True,
-        num_train_epochs=80,
-        per_device_train_batch_size=4,
-        learning_rate=5e-4,
-        save_strategy="no",
-        bf16=True,
-        logging_steps=10,
-        report_to="none",
-    )
+    training_args = build_lora_training_args(config)
 
     trainer = OvertoneTrainer(
         model=model,

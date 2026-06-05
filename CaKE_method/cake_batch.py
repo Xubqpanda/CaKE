@@ -9,14 +9,22 @@ from datasets import Dataset
 from transformers import TrainingArguments, Trainer, StoppingCriteria, StoppingCriteriaList
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 from peft import get_peft_model_state_dict, get_peft_model, set_peft_model_state_dict, LoraConfig, TaskType
-from edit_utils import  preprocess_function_chat, create_lora_model
+from edit_utils import build_lora_training_args, preprocess_function_chat, create_lora_model, resolve_lora_training_config
 from eval_utils import test_current_edited_knowledge, compute_edit_quality
 
-DEFAULT_TARGET_MODULES = ["up_proj", "down_proj"]
-
-
 def cake_batch_return_lora_weights(original_model, tokenizer, items_list, target_modules, hparams, test_generation=False):
-    model = create_lora_model(original_model,target_modules=target_modules)
+    config = resolve_lora_training_config(
+        hparams,
+        method_name="cake_batch",
+        overrides={"target_modules": target_modules},
+    )
+    model = create_lora_model(
+        original_model,
+        r=config["rank"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+        target_modules=target_modules,
+    )
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
     train_examples = []
@@ -52,17 +60,7 @@ def cake_batch_return_lora_weights(original_model, tokenizer, items_list, target
         fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
-    training_args = TrainingArguments(
-            output_dir=f'./output/',
-            overwrite_output_dir=True,
-            num_train_epochs=30,
-            per_device_train_batch_size=4,
-            learning_rate=5e-5,
-            save_strategy="no",
-            bf16=True,
-            logging_steps=10,
-            report_to="none",
-        )
+    training_args = build_lora_training_args(config)
 
     trainer = Trainer(
         model=model,
@@ -93,7 +91,7 @@ def apply_lora_weights_to_model(base_model, lora_weights, target_modules, hparam
  
 def cake_batch_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_batch")["target_modules"]
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -122,7 +120,7 @@ def cake_batch_sequential_edit(model, tokenizer, items_list, hparams, edit_freq,
 
 def cake_batch_continual_edit(model, tokenizer, items_list, hparams, edit_freq,datatype, test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_batch")["target_modules"]
     all_metrics = []
     current_training_times = []
     edited_items = []
@@ -152,7 +150,7 @@ def cake_batch_continual_edit(model, tokenizer, items_list, hparams, edit_freq,d
 
 def cake_batch_multi_edit(model, tokenizer, items_list, hparams, edit_freq, MODEL_PATH, datatype,test_generation=False):
     current_model = model
-    target_modules = getattr(hparams, "target_modules", DEFAULT_TARGET_MODULES)
+    target_modules = resolve_lora_training_config(hparams, method_name="cake_batch")["target_modules"]
     all_metrics = []
     current_training_times = []
     edited_items = []

@@ -13,6 +13,85 @@ from transformers import TrainingArguments, Trainer, StoppingCriteria, StoppingC
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 from eval_utils import check_answer_in_pred, compute_edit_quality
 
+DEFAULT_LORA_TARGET_MODULES = ["up_proj", "down_proj"]
+CAKE_BATCH_KL_TARGET_MODULES = [
+    "up_proj", "down_proj", "gate_proj",
+    "model.layers.0.self_attn.q_proj", "model.layers.0.self_attn.v_proj",
+    "model.layers.1.self_attn.q_proj", "model.layers.1.self_attn.v_proj",
+    "model.layers.27.self_attn.q_proj", "model.layers.27.self_attn.v_proj",
+    "model.layers.2.self_attn.q_proj", "model.layers.2.self_attn.v_proj",
+    "model.layers.3.self_attn.q_proj", "model.layers.3.self_attn.v_proj",
+    "model.layers.26.self_attn.q_proj", "model.layers.26.self_attn.v_proj",
+    "model.layers.24.self_attn.q_proj", "model.layers.24.self_attn.v_proj",
+]
+OVERTONE_TARGET_MODULES = ["q_proj", "v_proj", "k_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
+
+LORA_TRAINING_DEFAULTS = {
+    "cake": {
+        "target_modules": DEFAULT_LORA_TARGET_MODULES,
+        "num_steps": 30,
+        "batch_size": 4,
+        "lr": 5e-5,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+    },
+    "cake_kl": {
+        "target_modules": DEFAULT_LORA_TARGET_MODULES,
+        "num_steps": 30,
+        "batch_size": 2,
+        "lr": 5e-5,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.1,
+    },
+    "cake_batch": {
+        "target_modules": DEFAULT_LORA_TARGET_MODULES,
+        "num_steps": 30,
+        "batch_size": 4,
+        "lr": 5e-5,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+    },
+    "cake_batch_kl": {
+        "target_modules": CAKE_BATCH_KL_TARGET_MODULES,
+        "num_steps": 30,
+        "batch_size": 8,
+        "lr": 1e-5,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+    },
+    "cake_wise": {
+        "target_modules": DEFAULT_LORA_TARGET_MODULES,
+        "num_steps": 30,
+        "batch_size": 4,
+        "lr": 5e-5,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+    },
+    "lora": {
+        "target_modules": DEFAULT_LORA_TARGET_MODULES,
+        "num_steps": 30,
+        "batch_size": 4,
+        "lr": 5e-5,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+    },
+    "overtone": {
+        "target_modules": OVERTONE_TARGET_MODULES,
+        "num_steps": 80,
+        "batch_size": 4,
+        "lr": 5e-4,
+        "rank": 8,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+    },
+}
+
 def mean_pooling(token_embeddings, mask):
     token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.)
     sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)[..., None]
@@ -66,6 +145,58 @@ def create_lora_model(
     lora_model = get_peft_model(model, peft_config)
     print("LoRA model created.")
     return lora_model
+
+
+def resolve_lora_training_config(
+    hparams,
+    method_name,
+    overrides=None,
+    allow_hparams_batch_size=False,
+):
+    if method_name not in LORA_TRAINING_DEFAULTS:
+        raise ValueError(f"Unknown LoRA training config method: {method_name}")
+
+    config = dict(LORA_TRAINING_DEFAULTS[method_name])
+
+    if overrides:
+        config.update(overrides)
+
+    for key in ("target_modules", "rank", "lora_alpha", "lora_dropout"):
+        if hasattr(hparams, key):
+            value = getattr(hparams, key)
+            if value is not None:
+                config[key] = value
+
+    if hasattr(hparams, "train_num_steps") and getattr(hparams, "train_num_steps") is not None:
+        config["num_steps"] = getattr(hparams, "train_num_steps")
+    elif hasattr(hparams, "num_steps") and getattr(hparams, "num_steps") is not None:
+        config["num_steps"] = getattr(hparams, "num_steps")
+
+    if hasattr(hparams, "train_lr") and getattr(hparams, "train_lr") is not None:
+        config["lr"] = getattr(hparams, "train_lr")
+    elif hasattr(hparams, "lr") and getattr(hparams, "lr") is not None:
+        config["lr"] = getattr(hparams, "lr")
+
+    if hasattr(hparams, "train_batch_size") and getattr(hparams, "train_batch_size") is not None:
+        config["batch_size"] = getattr(hparams, "train_batch_size")
+    elif allow_hparams_batch_size and hasattr(hparams, "batch_size") and getattr(hparams, "batch_size") is not None:
+        config["batch_size"] = getattr(hparams, "batch_size")
+
+    return config
+
+
+def build_lora_training_args(config, output_dir="./output/"):
+    return TrainingArguments(
+        output_dir=output_dir,
+        overwrite_output_dir=True,
+        num_train_epochs=config["num_steps"],
+        per_device_train_batch_size=config["batch_size"],
+        learning_rate=config["lr"],
+        save_strategy="no",
+        bf16=True,
+        logging_steps=10,
+        report_to="none",
+    )
 
 
 def preprocess_function(examples,tokenizer):
@@ -291,9 +422,14 @@ def edit_mello(model, task_prompt, stop, tokenizer, edit_item, hparams, contriev
     return metrics
 
 def cake(original_model, tokenizer, item, hparams, datatype,test_generation=False):
-    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"]
-    target_modules = ["up_proj","down_proj"] 
-    model = create_lora_model(original_model,target_modules=target_modules)
+    config = resolve_lora_training_config(hparams, method_name="cake")
+    model = create_lora_model(
+        original_model,
+        r=config["rank"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+        target_modules=config["target_modules"],
+    )
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
     train_examples = []
@@ -327,17 +463,7 @@ def cake(original_model, tokenizer, item, hparams, datatype,test_generation=Fals
         fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
-    training_args = TrainingArguments(
-            output_dir=f'./output/',
-            overwrite_output_dir=True,
-            num_train_epochs=30,
-            per_device_train_batch_size=4,
-            learning_rate=5e-5,
-            save_strategy="no",
-            bf16=True,
-            logging_steps=10,
-            report_to="none",
-        )
+    training_args = build_lora_training_args(config)
 
     trainer = Trainer(
         model=model,
@@ -527,9 +653,14 @@ def edit_no_unload(model, tokenizer, edit_item, hparams,alg_name,apply_algo,test
 
 
 def cake_no_unload(original_model, tokenizer, item, hparams, test_generation=False):
-    # target_modules = ["q_proj", "v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"] 
-    target_modules = ["up_proj","down_proj"] 
-    model = create_lora_model(original_model,target_modules=target_modules)
+    config = resolve_lora_training_config(hparams, method_name="cake")
+    model = create_lora_model(
+        original_model,
+        r=config["rank"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+        target_modules=config["target_modules"],
+    )
     # original_model = original_model.to(device)
     model.enable_input_require_grads()
     train_examples = []
@@ -563,17 +694,7 @@ def cake_no_unload(original_model, tokenizer, item, hparams, test_generation=Fal
         fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
-    training_args = TrainingArguments(
-            output_dir=f'./output/',
-            overwrite_output_dir=True,
-            num_train_epochs=30,
-            per_device_train_batch_size=4,
-            learning_rate=5e-5,
-            save_strategy="no",
-            bf16=True,
-            logging_steps=10,
-            report_to="none",
-        )
+    training_args = build_lora_training_args(config)
 
     trainer = Trainer(
         model=model,
@@ -588,8 +709,18 @@ def cake_no_unload(original_model, tokenizer, item, hparams, test_generation=Fal
     return model, exec_time
 
 def lora_no_unload(original_model, tokenizer, item, hparams, test_generation=False):
-    target_modules = hparams.target_modules 
-    model = create_lora_model(original_model, target_modules=target_modules,)
+    config = resolve_lora_training_config(
+        hparams,
+        method_name="lora",
+        allow_hparams_batch_size=True,
+    )
+    model = create_lora_model(
+        original_model,
+        r=config["rank"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+        target_modules=config["target_modules"],
+    )
     model.enable_input_require_grads()
     train_examples = []
     item_case_examples = []
@@ -610,17 +741,7 @@ def lora_no_unload(original_model, tokenizer, item, hparams, test_generation=Fal
         fn_kwargs={"tokenizer": tokenizer,"model": model}
     )
 
-    training_args = TrainingArguments(
-            output_dir=f'./output/',
-            overwrite_output_dir=True,
-            num_train_epochs=hparams.num_steps,
-            per_device_train_batch_size=hparams.batch_size,
-            learning_rate=hparams.lr,
-            save_strategy="no",
-            bf16=True,
-            logging_steps=10,
-            report_to="none",
-        )
+    training_args = build_lora_training_args(config)
 
     trainer = Trainer(
         model=model,
