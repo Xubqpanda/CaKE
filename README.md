@@ -34,6 +34,11 @@ Just run the following commond:
 run.sh
 ```
 
+## CaKE+ reproduction
+
+See [the CaKE+ reproduction guide](experiments/cake_plus/README.md) for the
+HalluEditBench, MQuAKE-T and WikiBigEdit configurations and launcher.
+
 ## 🌻Acknowledgement
 
 We thank for the project of [EasyEdit](https://github.com/zjunlp/EasyEdit), [HoppingTooLate](https://github.com/edenbiran/HoppingTooLate).

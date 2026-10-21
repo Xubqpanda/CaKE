@@ -1,2 +1,8 @@
 */__pycache__
 *__pycache__
+/output/
+/logs/
+/saved_models/
+/datasets/*-cake.json
+/datasets/*-cake.json.gz
+/datasets/general_task_pool.json

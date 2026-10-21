@@ -1,0 +1,60 @@
+# Shared settings; each experiment overrides only the differing fields.
+# Epochs are full passes over expanded training examples, not optimizer steps.
+defaults:
+  model_type: llama3-8b
+  model_name: meta-llama/Meta-Llama-3-8B-Instruct
+  datatype: halluedit_llama
+  data_file: datasets/halluedit_llama-cake.json
+  num_edits: 1000
+  edit_freq: 100
+  lr: 0.00005
+  batch_size: 8
+  epochs: 30
+  kl_ref: current
+  kl_lambda: 0.1
+  kl_lambda_general: null  # Falls back to kl_lambda.
+  general_task_file: datasets/general_task_pool.json
+  general_task_num: 16
+  general_per_batch: 1
+  train_lora_dropout: 0.05
+  lora_dropout: 0.1  # Apply-stage LoRA configuration.
+  seed: 42
+  max_memory_gb: 70
+  save_model: true
+
+experiments:
+  llama_batch_1000:
+    kl_ref: batch
+    kl_lambda: 0.001
+    kl_lambda_general: 0.01
+  qwen_current_1000:
+    model_type: qwen2.5-7b
+    model_name: Qwen/Qwen2.5-7B-Instruct
+    datatype: halluedit_qwen
+    data_file: datasets/halluedit_qwen-cake.json
+    lr: 0.00002
+    epochs: 25
+    general_per_batch: 2
+
+  # Original completed MQuAKE-T and WikiBigEdit runs with general-task KL.
+  llama_mquake_t_1000:
+    datatype: MQuAKE-T
+    data_file: datasets/MQuAKE-T-cake.json
+    lr: 0.00003
+    general_per_batch: 2
+  qwen_mquake_t_1000:
+    model_type: qwen2.5-7b
+    model_name: Qwen/Qwen2.5-7B-Instruct
+    datatype: MQuAKE-T
+    data_file: datasets/MQuAKE-T-cake.json
+    general_per_batch: 2
+  llama_wikibigedit_1000:
+    datatype: wikibigedit
+    data_file: datasets/wikibigedit-cake.json
+    general_per_batch: 2
+  qwen_wikibigedit_1000:
+    model_type: qwen2.5-7b
+    model_name: Qwen/Qwen2.5-7B-Instruct
+    datatype: wikibigedit
+    data_file: datasets/wikibigedit-cake.json
+    general_per_batch: 2
