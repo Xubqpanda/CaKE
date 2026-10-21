@@ -1,0 +1,11 @@
+{
+  "experiments/cake_plus/results/llama_batch/metrics.json.gz": "842cc65a892c61f1cf3bedc95923c978e9446213f0f2db117dfe999970a23d1e",
+  "experiments/cake_plus/results/llama_batch/run.log.gz": "56217d886695e639c29f52b3da92b24ccf8a7e5951fb413f09fc2e92f0b10eb8",
+  "experiments/cake_plus/results/llama_batch/summary.json": "a3aa92ff5c8c69c23fa22aa24e818807a228b5a3c78a451468a16853b223c16a",
+  "experiments/cake_plus/results/qwen_current/metrics.json.gz": "cbbbe414e7ddacd3cedfeeb48f577ae0ed20c4cd37628799a67a3ca01296af73",
+  "experiments/cake_plus/results/qwen_current/run.log.gz": "1219b0058237b5a370535d46f555392ecbaf42f397f168475b81d0b99b091400",
+  "experiments/cake_plus/results/qwen_current/summary.json": "e3e1779523ba521578fb71493318d05c1a49ea2416cc032e6635bade8ea8d538",
+  "datasets/halluedit_llama-cake.json.gz": "622e6856e184afc42ee8d2e879c5e6723f5e6836e1465f5bd03f05c32eb68b38",
+  "datasets/halluedit_qwen-cake.json.gz": "403a3dd81affcbed254c40d3190c0d44f260b1abfc92e397f7ee8f6a98580716",
+  "datasets/general_task_pool.json": "fb8a9cd85acad86bd50228ec1bcf2658aeaf76e076e1e690d4b537a52301d52e"
+}

@@ -1,0 +1,66 @@
+[
+  {
+    "text": "Patricia is making a highlight film about her basketball team. She recorded video of every player and plans to put it all together in a longer movie. She has 130 seconds of the point guard, 145 seconds of the shooting guard, 85 seconds of the small forward, 60 seconds of the power forward, and 180 seconds of the center. How on average, how many minutes does each player get?",
+    "target": "The total movie is 600 seconds long because 130 + 145 + 85 + 60 + 180 = <<130+145+85+60+180=600>>600\nThe total movie is 10 minutes long because 600 / 60 = <<600/60=10>>10\nOn average each player gets 2 minutes because 10 / 5 = <<10/5=2>>2\n#### 2"
+  },
+  {
+    "text": "Pets and Animals: [header] How to set up an eclectus habitat [title] Buy the largest aviary/cage possible. [step] The cage you use should be a minimum of 3 feet wide (. 91 m), 2 feet deep (. 6 m), and 4 feet high (1.22 m). Providing a large cage will ensure that your bird has the room it needs to thrive.",
+    "target": "[substeps] The cage should be relatively wide so the eclectus can flap its wings. Bar/wire spacing should not be no more than ¾ of an inch (1.9 cm) wide."
+  },
+  {
+    "text": "Food and Entertaining: [header] How to make a fruit trifle [title] Bring 2 2/3 cups (675ml) of milk to a boil in a saucepan. [title] Mix sugar and vanilla custard powder in the remaining 1/3 (75ml) cup of milk to make a smooth paste. [title] Pour the custard paste in boiling milk and cook for another 2-3 minutes with continuous stirring on medium heat.",
+    "target": "[title] Lay the loaf cake slices evenly in a 8 \" x 11 \" dish. [title] Pour half of the custard over the cake slices."
+  },
+  {
+    "text": "Computers and Electronics: [header] How to find contacts in gmail [title] Sign in to your gmail account at https: // mail. Google.com /. [title] Click on \" gmail \" at the top left corner of your session and select \" contacts. [step] This will display a list of your contacts, along with additional categories in the left sidebar.",
+    "target": "[title] Type the contact details for the person you're searching for into the search box at the top of your gmail session. [step] You can enter the person's name, email address, phone number, email domain or username, or any other contact details."
+  },
+  {
+    "text": "Wendy spent 25 years as an accountant and 15 years as an accounting manager. If Wendy lived to be 80 years old, what percentage of her life did she spend in an accounting-related job?",
+    "target": "First find the total number of years Wendy spent in accounting: 25 years + 15 years = <<25+15=40>>40 years\nThen divide the number of years she spent in accounting by the number of years she lived and multiply by 100% to find the percentage of her life: 40 years / 80 years * 100% = 50%\n#### 50"
+  },
+  {
+    "text": "A library has a number of books. 35% of them are intended for children and 104 of them are for adults. How many books are in the library?",
+    "target": "65% of the library books are for adults because 100 - 35 = <<100-35=65>>65\nThere are 160 library books in total because 104 / .65 = <<104/.65=160>>160\n#### 160"
+  },
+  {
+    "text": "Hand washing clothes: The woman is now standing under a clothes line and is hanging her largest piece of fabric followed by smaller pieces of fabric that she has washed. when the woman",
+    "target": "is done hanging all the clothes the video goes back to color, the woman talks to the camera and a black screen appears with green lettering that say \" i got three words for ghana invest in appliances! :) \"."
+  },
+  {
+    "text": "Write a review for a car rental agency that frequently overcharged you.",
+    "target": "I would strongly advise others to steer clear from this car rental agency! On several occasions, I have been overcharged for services I never received. The staff is unprofessional and seems to be trying to take advantage of unsuspecting customers. Do yourselves a favor and look for another company - your wallet will thank you!"
+  },
+  {
+    "text": "What is the importance of nutrition in maintaining physical health?",
+    "target": "Nutrition is important for maintaining physical health for several reasons. Eating a balanced, nutrient-rich diet helps the body to get the energy, vitamins, minerals, and other nutrients it needs to function effectively. Nutrition also plays an important role in helping to heal and repair the body, reducing inflammation, and protecting against various chronic diseases. Eating a nutritious diet is therefore essential for maintaining good physical health."
+  },
+  {
+    "text": "Discard all characters that are not letters from the following string.\n\"It's time to 52x3 goodbye.\"",
+    "target": "Its timetogoodbye"
+  },
+  {
+    "text": "Niko has bought 9 pairs of socks that cost $2 each and plans to resell them. He wants to gain 25% profit from four of the pairs of socks and $0.2 profit each for the other 5 pairs of socks. How much will his total profit be?",
+    "target": "Niko will earn $2 x 25/100 = $<<2*25/100=0.5>>0.5 profit for each of the first four pairs of socks.\nSo, his total profit for the four pairs of socks will be $0.5 x 4 = $<<0.5*4=2>>2.\nHis total earnings for the 5 pairs of socks is $0.2 x 5 = $<<0.2*5=1>>1.\nTherefore, his total profit will be $2 + $1 = $<<2+1=3>>3.\n#### 3"
+  },
+  {
+    "text": "Mara has 40 crayons and 10 percent of her crayons are pink. Luna has 50 crayons and 20 percent of them are pink. In total how many pink crayons do Mara and Luna have?",
+    "target": "Mara has 40 x (10 / 100) = <<40*(10/100)=4>>4 pink crayons.\nLuna has 50 x (20 / 100) = <<50*(20/100)=10>>10 pink crayons.\nTogether they have 4 + 10 = <<4+10=14>>14 pink crayons\n#### 14"
+  },
+  {
+    "text": "What would be the best type of exercise for a person who has arthritis?",
+    "target": "For someone with arthritis, the best type of exercise would be low-impact activities like yoga, swimming, or walking. These exercises provide the benefits of exercise without exacerbating the symptoms of arthritis."
+  },
+  {
+    "text": "Education and Communications: [header] How to read braille [title] Learn the positions of the 6 dots in a braille cell. [step] The individual cells have no intrinsic meaning; the meaning changes depending on which braille system you are reading. However, knowing where the dots and empty spaces are is important to being able to read braille.",
+    "target": "Braille printed for the sighted may have \" shadow dots \" in the empty spaces; braille for the blind will not have these. [title] Learn the first 10 letters (a-j) of the alphabet."
+  },
+  {
+    "text": "Mr. Langsley commutes to work every day by bus. The bus picks him up at 6:00 a.m. and takes forty minutes to arrive at the first station. If Mr. Langsley arrives at work at 9:00 a.m., what's the total time taken in minutes from the first station to Mr. Langsley's workplace?",
+    "target": "The total time taken for the whole journey is 9:00-6:00 = <<9-6=3>>3 hours.\nThe total time taken in minutes is 3*60 = <<3*60=180>>180 minutes.\nIf it takes 40 minutes to reach the first station, then the rest of the journey takes 180 - 40 = <<180-40=140>>140 minutes.\n#### 140"
+  },
+  {
+    "text": "Give an example of an appropriate reminder that could be set using a GPT model.",
+    "target": "Set a reminder to have a virtual check-in meeting with my Team every Wednesday at 9am."
+  }
+]

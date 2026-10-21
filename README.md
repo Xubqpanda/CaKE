@@ -38,3 +38,7 @@ run.sh
 
 We thank for the project of [EasyEdit](https://github.com/zjunlp/EasyEdit), [HoppingTooLate](https://github.com/edenbiran/HoppingTooLate).
 The code in this work is built on top of these projects' codes.
+
+## CaKE+ reproduction
+
+See [final configurations, results and logs](experiments/cake_plus/README.md).
